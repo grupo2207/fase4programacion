@@ -1,260 +1,172 @@
-import abc
-import logging
-from datetime import datetime
+import abc                      # Para definir clases abstractas si es necesario        
+import logging                  # Para el manejo de logs y errores
+from datetime import datetime   # Para manejar fechas y horas en reservas
+import tkinter as tk            # Para la interfaz gráfica de usuario (GUI)
+from tkinter import ttk, messagebox # ttk para widgets mejorados, messagebox para mostrar mensajes al usuario
 
 # ==========================================
-# 1. CONFIGURACIÓN DEL LOGGING
+# 1. CONFIGURACIÓN DEL LOGGING Y EXCEPCIONES
 # ==========================================
-# Se configura para guardar los errores en un archivo de texto mientras la app se ejecuta.
-logging.basicConfig(
-    filename='fj_errores.log',
-    level=logging.ERROR,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    encoding='utf-8'
+logging.basicConfig(                # Configuración básica del logging
+    filename='fj_errores.log',      # Archivo donde se guardarán los logs de errores 
+    level=logging.ERROR,            # Solo se registrarán eventos de nivel ERROR o superior
+    format='%(asctime)s - %(levelname)s - %(message)s', # Formato del mensaje de log: fecha, nivel de error y mensaje
+    encoding='utf-8' # Codificación del archivo de log para soportar caracteres especiales
 )
 
-# ==========================================
-# 2. MANEJO AVANZADO DE EXCEPCIONES
-# ==========================================
-class FJErrorBase(Exception):
-    """Clase base abstracta para las excepciones personalizadas del sistema FJ."""
-    pass
-
-class ErrorValidacionCliente(FJErrorBase):
-    """Excepción lanzada cuando los datos del cliente no cumplen los formatos requeridos."""
-    pass
-
-class ErrorReserva(FJErrorBase):
-    """Excepción lanzada cuando hay un problema lógico al crear una reserva."""
-    pass
+class FJErrorBase(Exception): pass # Clase base para errores personalizados del sistema FJ
+class ErrorValidacionCliente(FJErrorBase): pass # Error específico para validación de datos del cliente (ej: nombre, tipo de documento, número de documento)
+class ErrorReserva(FJErrorBase): pass # Error específico para problemas relacionados con reservas (ej: fechas inválidas, conflictos de horarios, etc.)
 
 # ==========================================
-# 3. MODELO DE CLIENTE (Encapsulación y Validaciones)
+# 2. MODELO DE NEGOCIO (Backend)
 # ==========================================
-class Cliente:
-    """Clase que representa a un cliente de FJ. Aplica encapsulación estricta."""
-    
-    TIPOS_DOC_PERMITIDOS = ['CC', 'TI', 'CE', 'PSP']
+class Cliente:                  # Clase que representa a un cliente en el sistema FJ
+    TIPOS_DOC_PERMITIDOS = ['CC', 'TI', 'CE', 'PSP'] # Tipos de documentos permitidos: Cédula de Ciudadanía, Tarjeta de Identidad, Cédula de Extranjería, Pasaporte
 
-    def __init__(self, nombre, tipo_doc, num_doc):
-        # Se utilizan los setters para invocar las validaciones inmediatamente
-        self.nombre = nombre
-        self.tipo_doc = tipo_doc
-        self.num_doc = num_doc
+    def __init__(self, nombre, tipo_doc, num_doc): # Constructor que recibe el nombre, tipo de documento y número de documento del cliente    
+        self.nombre = nombre                       # Asigna el nombre utilizando el setter para validar que solo contenga texto
+        self.tipo_doc = tipo_doc                   # Asigna el tipo de documento utilizando el setter para validar que sea uno de los tipos permitidos 
+        self.num_doc = num_doc                     # Asigna el número de documento utilizando el setter para validar que solo contenga números 
 
-    # Propiedad y Setter para Nombre
     @property
-    def nombre(self):
-        return self.__nombre
+    def nombre(self): return self.__nombre         # Getter para el nombre del cliente, devuelve el valor almacenado en la variable privada __nombre
 
-    @nombre.setter
-    def nombre(self, valor):
-        # Valida que solo contenga letras y espacios
-        valor_limpio = str(valor).strip()
-        if not all(caracter.isalpha() or caracter.isspace() for caracter in valor_limpio):
-            raise ErrorValidacionCliente(f"El nombre '{valor}' es inválido. Solo se permite texto.")
-        self.__nombre = valor_limpio
+    @nombre.setter                                 # Setter para el nombre del cliente, valida que solo contenga texto y espacios, y que no esté vacío
+    def nombre(self, valor):                       # Elimina espacios al inicio y al final del valor, luego verifica que cada carácter sea una letra o un espacio, y que el resultado no esté vacío 
+        valor_limpio = str(valor).strip()          # Si el valor contiene caracteres no permitidos o está vacío, se lanza una excepción de validación con un mensaje específico 
+        if not all(c.isalpha() or c.isspace() for c in valor_limpio) or not valor_limpio: # isalpha() verifica que el carácter sea una letra, isspace() verifica que el carácter sea un espacio, all() asegura que todos los caracteres cumplan la condición, y se verifica que el resultado no esté vacío 
+            raise ErrorValidacionCliente("El nombre es inválido. Solo se permite texto.") # Si el valor es válido, se asigna a la variable privada __nombre para su almacenamiento interno
+        self.__nombre = valor_limpio   
 
-    # Propiedad y Setter para Tipo de Documento
-    @property
-    def tipo_doc(self):
-        return self.__tipo_doc
+    @property                                      # Getter para el tipo de documento del cliente, devuelve el valor almacenado en la variable privada __tipo_doc 
+    def tipo_doc(self): return self.__tipo_doc     # Setter para el tipo de documento del cliente, valida que el valor esté dentro de los tipos permitidos (CC, TI, CE, PSP), y lo convierte a mayúsculas para estandarizar su formato. Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __tipo_doc para su almacenamiento interno.    
 
-    @tipo_doc.setter
-    def tipo_doc(self, valor):
-        valor_upper = str(valor).strip().upper()
+    @tipo_doc.setter                               # Setter para el tipo de documento del cliente, valida que el valor esté dentro de los tipos permitidos (CC, TI, CE, PSP), y lo convierte a mayúsculas para estandarizar su formato. Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __tipo_doc para su almacenamiento interno. 
+    def tipo_doc(self, valor):                     # Elimina espacios al inicio y al final del valor, lo convierte a mayúsculas, y luego verifica que esté dentro de los tipos de documentos permitidos. Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __tipo_doc para su almacenamiento interno. 
+        valor_upper = str(valor).strip().upper()   # Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __tipo_doc para su almacenamiento interno. 
         if valor_upper not in self.TIPOS_DOC_PERMITIDOS:
-            raise ErrorValidacionCliente(f"Tipo de documento '{valor}' no válido. Opciones: {self.TIPOS_DOC_PERMITIDOS}")
-        self.__tipo_doc = valor_upper
+            raise ErrorValidacionCliente(f"Tipo de documento '{valor}' no válido.")  # Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __tipo_doc para su almacenamiento interno.
+        self.__tipo_doc = valor_upper   # Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __tipo_doc para su almacenamiento interno.
 
-    # Propiedad y Setter para Número de Documento
-    @property
-    def num_doc(self):
-        return self.__num_doc
+    @property # Getter para el número de documento del cliente, devuelve el valor almacenado en la variable privada __num_doc
+    def num_doc(self): return self.__num_doc #  Setter para el número de documento del cliente, valida que el valor solo contenga números y no esté vacío. Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __num_doc para su almacenamiento interno.
 
-    @num_doc.setter
-    def num_doc(self, valor):
-        valor_str = str(valor).strip()
-        if not valor_str.isdigit():
-            raise ErrorValidacionCliente(f"El número de documento '{valor}' es inválido. Solo se permiten números.")
-        self.__num_doc = valor_str
+    @num_doc.setter # Setter para el número de documento del cliente, valida que el valor solo contenga números y no esté vacío. Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __num_doc para su almacenamiento interno.
+    def num_doc(self, valor): # Elimina espacios al inicio y al final del valor, luego verifica que el valor solo contenga dígitos y no esté vacío. Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __num_doc para su almacenamiento interno.
+        valor_str = str(valor).strip() # Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __num_doc para su almacenamiento interno.
+        if not valor_str.isdigit() or not valor_str: # isdigit() verifica que el valor solo contenga dígitos, y se verifica que el resultado no esté vacío. Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __num_doc para su almacenamiento interno.
+            raise ErrorValidacionCliente("El número de documento es inválido. Solo números.") # Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __num_doc para su almacenamiento interno.
+        self.__num_doc = valor_str # Si el valor no es válido, se lanza una excepción de validación con un mensaje específico. Si el valor es válido, se asigna a la variable privada __num_doc para su almacenamiento interno.
 
-    def __str__(self):
-        return f"{self.nombre} ({self.tipo_doc} {self.num_doc})"
+class SistemaFJ: # Clase que representa el motor del sistema de reservas FJ, encargado de manejar la lógica de negocio relacionada con los clientes y las reservas
+    def __init__(self): # Constructor que inicializa la lista de clientes como una lista vacía, donde se almacenarán los objetos Cliente registrados en el sistema
+        self._clientes = [] # Lista privada para almacenar los clientes registrados en el sistema. Se utiliza un guion bajo para indicar que es un atributo interno y no debe ser accedido directamente desde fuera de la clase.
 
-
-# ==========================================
-# 4. MODELO DE SERVICIOS (Abstracción, Herencia y Polimorfismo)
-# ==========================================
-class Servicio(abc.ABC):
-    """Clase abstracta base para todos los servicios ofrecidos por FJ."""
-    
-    def __init__(self, id_servicio, descripcion, precio_base):
-        self.id_servicio = id_servicio
-        self.descripcion = descripcion
-        self.precio_base = precio_base
-
-    @abc.abstractmethod
-    def calcular_costo_final(self):
-        """Método abstracto que las clases derivadas deben implementar (Polimorfismo)."""
-        pass
-
-class ReservaSala(Servicio):
-    def __init__(self, id_servicio, descripcion, precio_base, horas, requiere_catering=False):
-        super().__init__(id_servicio, descripcion, precio_base)
-        self.horas = horas
-        self.requiere_catering = requiere_catering
-
-    def calcular_costo_final(self):
-        costo = self.precio_base * self.horas
-        if self.requiere_catering:
-            costo += 50000  # Costo adicional fijo simulado
-        return costo
-
-class AlquilerEquipo(Servicio):
-    def __init__(self, id_servicio, descripcion, precio_base, dias, incluye_seguro=True):
-        super().__init__(id_servicio, descripcion, precio_base)
-        self.dias = dias
-        self.incluye_seguro = incluye_seguro
-
-    def calcular_costo_final(self):
-        costo = self.precio_base * self.dias
-        if self.incluye_seguro:
-            costo += (self.precio_base * 0.10) * self.dias # 10% extra por día de seguro
-        return costo
-
-class AsesoriaEspecializada(Servicio):
-    def __init__(self, id_servicio, descripcion, precio_base, nivel_experto="Senior"):
-        super().__init__(id_servicio, descripcion, precio_base)
-        self.nivel_experto = nivel_experto
-
-    def calcular_costo_final(self):
-        multiplicador = 1.5 if self.nivel_experto == "Senior" else 1.0
-        return self.precio_base * multiplicador
-
-
-# ==========================================
-# 5. MODELO DE RESERVAS
-# ==========================================
-class Reserva:
-    """Clase que asocia un Cliente con un Servicio."""
-    
-    contador_reservas = 1
-
-    def __init__(self, cliente, servicio):
-        self.id_reserva = Reserva.contador_reservas
-        Reserva.contador_reservas += 1
-        self.cliente = cliente
-        self.servicio = servicio
-        self.fecha_registro = datetime.now()
-
-    def obtener_resumen(self):
-        return (f"Reserva #{self.id_reserva} | Cliente: {self.cliente.nombre} | "
-                f"Servicio: {self.servicio.descripcion} | Total: ${self.servicio.calcular_costo_final():.2f}")
-
-
-# ==========================================
-# 6. GESTOR PRINCIPAL DEL SISTEMA
-# ==========================================
-class SistemaFJ:
-    """Clase principal para administrar listas internas y lógica de negocio."""
-    
-    def __init__(self):
-        self._clientes = []
-        self._reservas = []
-
-    def registrar_cliente(self, nombre, tipo_doc, num_doc):
-        """Intenta registrar un cliente usando manejo robusto de excepciones."""
-        print(f"\n--- Intentando registrar cliente: {nombre} ---")
+    def registrar_cliente(self, nombre, tipo_doc, num_doc): # Método para registrar un nuevo cliente en el sistema, recibe el nombre, tipo de documento y número de documento como parámetros. Este método se encarga de crear un nuevo objeto Cliente con los datos proporcionados, validando la información a través de los setters definidos en la clase Cliente. Si la validación es exitosa, el nuevo cliente se agrega a la lista de clientes del sistema. Si ocurre algún error de validación, se captura la excepción y se registra un mensaje de error en el log, luego se relanza la excepción para que pueda ser manejada por la interfaz gráfica (GUI) y mostrar un mensaje al usuario.
         try:
-            # Podría generar un ValueError nativo si se pasa un tipo de dato irrecuperable
-            # o nuestra excepción personalizada ErrorValidacionCliente
-            nuevo_cliente = Cliente(nombre, tipo_doc, num_doc)
+            nuevo_cliente = Cliente(nombre, tipo_doc, num_doc) # Intentamos crear un nuevo cliente utilizando la clase Cliente, lo que implica validar los datos a través de los setters definidos en esa clase. Si alguno de los datos no cumple con las reglas de validación (ej: nombre con números, tipo de documento no permitido, número de documento con letras), se lanzará una excepción de validación que será capturada en el bloque except. 
+        except ErrorValidacionCliente as e: # Si ocurre un error de validación al intentar crear el cliente (ej: nombre con números, tipo de documento no permitido, número de documento con letras), se captura la excepción específica ErrorValidacionCliente y se registra un mensaje de error en el log con el detalle del error. Luego, se relanza la excepción para que pueda ser manejada por la interfaz gráfica (GUI) y mostrar un mensaje al usuario indicando cuál fue el error de validación.
+            logging.error(f"Error de validación al crear cliente: {e}") # Registramos el error de validación en el log con un mensaje específico que incluye el detalle del error capturado en la excepción. Esto nos permite tener un registro de los errores de validación que ocurren en el sistema, lo cual es útil para depuración y análisis posterior.
+            raise e # Relanzamos para que la GUI lo atrape y muestre el mensaje
+        except Exception as e: # Si ocurre cualquier otro error inesperado durante la creación del cliente (ej: error de codificación, error de memoria, etc.), se captura la excepción genérica Exception y se registra un mensaje de error crítico en el log con el detalle del error. Luego, se lanza una nueva excepción FJErrorBase con un mensaje genérico de error crítico del sistema, utilizando la sintaxis "raise ... from e" para mantener la cadena de excepciones y facilitar la depuración.
+            logging.critical(f"Error crítico inesperado: {e}") # Registramos el error crítico inesperado en el log con un mensaje específico que incluye el detalle del error capturado en la excepción. Esto nos permite tener un registro de los errores críticos que ocurren en el sistema, lo cual es crucial para identificar y solucionar problemas graves.
+            raise FJErrorBase("Error crítico del sistema.") from e # Lanzamos una nueva excepción FJErrorBase con un mensaje genérico de error crítico del sistema, utilizando "from e" para mantener la cadena de excepciones y facilitar la depuración. Esto indica que ocurrió un error crítico que no se pudo manejar adecuadamente, y se recomienda revisar el archivo de logs para obtener más detalles sobre el error.
+        else: # Si la creación del cliente fue exitosa y no se lanzaron excepciones, se ejecuta el bloque else, donde se agrega el nuevo cliente a la lista de clientes del sistema utilizando el método append. Luego, se retorna el nuevo cliente creado para que pueda ser utilizado por la interfaz gráfica (GUI) o cualquier otro componente que lo requiera.
+            self._clientes.append(nuevo_cliente) # Agregamos el nuevo cliente a la lista de clientes del sistema utilizando el método append. Esto permite que el cliente quede registrado en el sistema y pueda ser accedido posteriormente para realizar reservas u otras operaciones relacionadas con el cliente.
+            return nuevo_cliente # Retornamos el nuevo cliente creado para que pueda ser utilizado por la interfaz gráfica (GUI) o cualquier otro componente que lo requiera. Esto permite que la GUI pueda mostrar información del cliente registrado o realizar otras acciones relacionadas con el cliente después de su creación exitosa.
+
+# ==========================================
+# 3. INTERFAZ GRÁFICA (Frontend - Administrador)
+# ==========================================
+class AppAdminFJ: # Clase que representa la aplicación de administración del sistema FJ, encargada de manejar la interfaz gráfica para registrar clientes y gestionar reservas. Esta clase se encarga de construir la ventana principal de la aplicación utilizando Tkinter, y de manejar los eventos relacionados con el registro de clientes, interactuando con el motor del sistema (SistemaFJ) para realizar las operaciones necesarias.     
+    """Módulo principal de la interfaz de usuario para la administración de FJ.""" # Docstring que describe la clase AppAdminFJ como el módulo principal de la interfaz de usuario para la administración del sistema FJ. Esta clase se encarga de construir la ventana principal de la aplicación utilizando Tkinter, y de manejar los eventos relacionados con el registro de clientes, interactuando con el motor del sistema (SistemaFJ) para realizar las operaciones necesarias.
+    
+    def __init__(self, root, sistema): # Constructor que recibe la ventana raíz de Tkinter y una instancia del sistema (SistemaFJ) para interactuar con la lógica de negocio. En este constructor se configuran las propiedades básicas de la ventana, como el título, tamaño y si es redimensionable. También se definen estilos generales para los títulos y etiquetas, y se llama al método _construir_interfaz() para construir los elementos visuales de la interfaz.
+        self.root = root # Guardamos la referencia a la ventana raíz de Tkinter para poder manipularla y agregar elementos visuales posteriormente. Esto nos permite construir la interfaz gráfica de la aplicación utilizando esta ventana como contenedor principal.
+        self.sistema = sistema # Guardamos la referencia a la instancia del sistema (SistemaFJ) para poder interactuar con la lógica de negocio desde la interfaz gráfica. Esto nos permite llamar a los métodos del sistema para registrar clientes, gestionar reservas, y realizar otras operaciones relacionadas con el negocio desde los eventos de la interfaz gráfica.
+        self.root.title("Panel de Administración - Sistema FJ") # Configuramos el título de la ventana principal de la aplicación utilizando el método title() de Tkinter. Esto establece el texto que aparecerá en la barra de título de la ventana, indicando que es el panel de administración del sistema FJ.
+        self.root.geometry("450x350") # Configuramos el tamaño inicial de la ventana principal de la aplicación utilizando el método geometry() de Tkinter. Esto establece las dimensiones de la ventana en píxeles, en este caso 450 píxeles de ancho y 350 píxeles de alto, proporcionando un espacio adecuado para mostrar los elementos visuales de la interfaz gráfica.
+        self.root.resizable(False, False) # Configuramos la ventana para que no sea redimensionable utilizando el método resizable() de Tkinter. Esto evita que el usuario pueda cambiar el tamaño de la ventana, lo cual puede ser útil para mantener un diseño consistente y evitar problemas de visualización si la ventana se hace demasiado pequeña o demasiado grande. En este caso, se establece que tanto el ancho como el alto no sean redimensionables (False, False).
+        
+        # Estilos generales
+        self.fuente_titulo = ("Helvetica", 14, "bold") # Definimos un estilo general para los títulos de la interfaz utilizando una tupla que especifica la fuente (Helvetica), el tamaño (14) y el estilo (bold). Este estilo se utilizará para los títulos principales de la interfaz, como el título del módulo de registro de clientes, para darle un aspecto destacado y profesional.
+        self.fuente_label = ("Helvetica", 10) # Definimos un estilo general para las etiquetas de la interfaz utilizando una tupla que especifica la fuente (Helvetica) y el tamaño (10). Este estilo se utilizará para las etiquetas de los campos del formulario, como "Nombre Completo:", "Tipo de Documento:", y "No. de Documento:", para mantener una apariencia consistente y legible en toda la interfaz gráfica.
+        
+        self._construir_interfaz() # Llamamos al método _construir_interfaz() para construir los elementos visuales de la interfaz gráfica. Este método se encarga de crear y organizar los widgets de la interfaz, como etiquetas, campos de entrada, comboboxes y botones, para permitir al usuario interactuar con el sistema y registrar clientes de manera eficiente y amigable.
+
+    def _construir_interfaz(self): # Método privado que se encarga de construir los elementos visuales de la interfaz gráfica utilizando Tkinter. En este método se crean y organizan los widgets de la interfaz, como etiquetas, campos de entrada, comboboxes y botones, para permitir al usuario interactuar con el sistema y registrar clientes de manera eficiente y amigable. Se utiliza un contenedor (frame) para organizar el formulario de registro de clientes, y se configuran los eventos para manejar las acciones del usuario, como hacer clic en el botón de registrar cliente.
+        # Título    
+        lbl_titulo = tk.Label(self.root, text="Módulo de Registro de Clientes", font=self.fuente_titulo, pady=15) # Creamos una etiqueta (Label) para el título del módulo de registro de clientes utilizando el widget Label de Tkinter. Configuramos el texto del título, el estilo de fuente utilizando la variable self.fuente_titulo, y un padding vertical (pady) para darle espacio alrededor del título. Esta etiqueta se agregará a la ventana principal (self.root) y se mostrará en la parte superior de la interfaz gráfica para indicar claramente al usuario que está en el módulo de registro de clientes.
+        lbl_titulo.pack() # Utilizamos el método pack() para agregar la etiqueta del título a la ventana principal (self.root) y mostrarla en la interfaz gráfica. El método pack() organiza los widgets de manera automática, en este caso, colocará el título en la parte superior de la ventana, centrado horizontalmente, y con el espacio definido por el padding vertical (pady) que configuramos anteriormente. Esto permite que el título se vea destacado y sea fácilmente identificable para el usuario al ingresar al módulo de registro de clientes.
+
+        # Contenedor para el formulario
+        frame_form = tk.Frame(self.root, padx=20, pady=10) # Creamos un contenedor (Frame) para organizar el formulario de registro de clientes utilizando el widget Frame de Tkinter. Configuramos un padding horizontal (padx) y vertical (pady) para darle espacio alrededor del formulario, lo que mejora la apariencia y la legibilidad de los campos del formulario. Este frame se agregará a la ventana principal (self.root) y se utilizará como contenedor para los widgets del formulario, como etiquetas, campos de entrada y comboboxes, permitiendo una organización clara y estructurada de los elementos visuales relacionados con el registro de clientes.
+        frame_form.pack(fill="both", expand=True) # Utilizamos el método pack() para agregar el frame del formulario a la ventana principal (self.root) y permitir que se expanda para llenar el espacio disponible. Configuramos fill="both" para que el frame se expanda tanto horizontal como verticalmente, y expand=True para permitir que el frame crezca si la ventana se redimensiona (aunque en este caso la ventana no es redimensionable, esto asegura que el frame ocupe todo el espacio asignado). Esto permite que los widgets del formulario dentro del frame estén organizados de manera clara y tengan suficiente espacio para mostrarse correctamente en la interfaz gráfica.
+
+        # --- Campo Nombre ---
+        tk.Label(frame_form, text="Nombre Completo:", font=self.fuente_label).grid(row=0, column=0, sticky="w", pady=10) # Creamos una etiqueta (Label) para el campo de nombre utilizando el widget Label de Tkinter. Configuramos el texto de la etiqueta, el estilo de fuente utilizando la variable self.fuente_label, y un padding vertical (pady) para darle espacio alrededor de la etiqueta. Utilizamos el método grid() para organizar la etiqueta en una cuadrícula dentro del frame del formulario, ubicándola en la fila 0 y columna 0, y configuramos sticky="w" para alinear la etiqueta a la izquierda dentro de su celda. Esto permite que la etiqueta del campo de nombre se vea claramente y esté alineada correctamente con el campo de entrada correspondiente.
+        self.entrada_nombre = tk.Entry(frame_form, width=30) # Creamos un campo de entrada (Entry) para el nombre utilizando el widget Entry de Tkinter. Configuramos el ancho del campo de entrada para que sea de 30 caracteres, lo que proporciona suficiente espacio para que el usuario ingrese su nombre completo. Este campo de entrada se agregará al frame del formulario y se ubicará en la fila 0 y columna 1, al lado de la etiqueta correspondiente, permitiendo una organización clara y fácil de usar para el registro de clientes en la interfaz gráfica.
+        self.entrada_nombre.grid(row=0, column=1, pady=10, padx=10) # Utilizamos el método grid() para organizar el campo de entrada del nombre en una cuadrícula dentro del frame del formulario, ubicándolo en la fila 0 y columna 1, al lado de la etiqueta correspondiente. Configuramos un padding vertical (pady) y horizontal (padx) para darle espacio alrededor del campo de entrada, lo que mejora la apariencia y la legibilidad del formulario. Esto permite que el campo de entrada del nombre esté claramente asociado con su etiqueta y sea fácil de usar para el usuario al ingresar su información. 
+
+        # --- Campo Tipo de Documento (Combobox) ---
+        tk.Label(frame_form, text="Tipo de Documento:", font=self.fuente_label).grid(row=1, column=0, sticky="w", pady=10) # Creamos una etiqueta (Label) para el campo de tipo de documento utilizando el widget Label de Tkinter. Configuramos el texto de la etiqueta, el estilo de fuente utilizando la variable self.fuente_label, y un padding vertical (pady) para darle espacio alrededor de la etiqueta. Utilizamos el método grid() para organizar la etiqueta en una cuadrícula dentro del frame del formulario, ubicándola en la fila 1 y columna 0, y configuramos sticky="w" para alinear la etiqueta a la izquierda dentro de su celda. Esto permite que la etiqueta del campo de tipo de documento se vea claramente y esté alineada correctamente con el combobox correspondiente.
+        self.combo_tipo_doc = ttk.Combobox(frame_form, values=Cliente.TIPOS_DOC_PERMITIDOS, state="readonly", width=27) # Creamos un combobox para el campo de tipo de documento utilizando el widget Combobox de ttk (parte de Tkinter). Configuramos las opciones del combobox utilizando la lista de tipos de documentos permitidos definida en la clase Cliente (Cliente.TIPOS_DOC_PERMITIDOS), establecemos el estado como "readonly" para que el usuario solo pueda seleccionar una opción y no pueda escribir en el campo, y configuramos el ancho del combobox para que sea de 27 caracteres, lo que proporciona suficiente espacio para mostrar las opciones disponibles. Este combobox se agregará al frame del formulario y se ubicará en la fila 1 y columna 1, al lado de la etiqueta correspondiente, permitiendo una organización clara y fácil de usar para el registro de clientes en la interfaz gráfica.
+        self.combo_tipo_doc.grid(row=1, column=1, pady=10, padx=10) # Utilizamos el método grid() para organizar el combobox del tipo de documento en una cuadrícula dentro del frame del formulario, ubicándolo en la fila 1 y columna 1, al lado de la etiqueta correspondiente. Configuramos un padding vertical (pady) y horizontal (padx) para darle espacio alrededor del combobox, lo que mejora la apariencia y la legibilidad del formulario. Esto permite que el combobox del tipo de documento esté claramente asociado con su etiqueta y sea fácil de usar para el usuario al seleccionar su tipo de documento.
+        self.combo_tipo_doc.set("Seleccione...") # Texto por defecto
+
+        # --- Campo Número de Documento ---
+        tk.Label(frame_form, text="No. de Documento:", font=self.fuente_label).grid(row=2, column=0, sticky="w", pady=10) # Creamos una etiqueta (Label) para el campo de número de documento utilizando el widget Label de Tkinter. Configuramos el texto de la etiqueta, el estilo de fuente utilizando la variable self.fuente_label, y un padding vertical (pady) para darle espacio alrededor de la etiqueta. Utilizamos el método grid() para organizar la etiqueta en una cuadrícula dentro del frame del formulario, ubicándola en la fila 2 y columna 0, y configuramos sticky="w" para alinear la etiqueta a la izquierda dentro de su celda. Esto permite que la etiqueta del campo de número de documento se vea claramente y esté alineada correctamente con el campo de entrada correspondiente.
+        self.entrada_num_doc = tk.Entry(frame_form, width=30) # Creamos un campo de entrada (Entry) para el número de documento utilizando el widget Entry de Tkinter. Configuramos el ancho del campo de entrada para que sea de 30 caracteres, lo que proporciona suficiente espacio para que el usuario ingrese su número de documento. Este campo de entrada se agregará al frame del formulario y se ubicará en la fila 2 y columna 1, al lado de la etiqueta correspondiente, permitiendo una organización clara y fácil de usar para el registro de clientes en la interfaz gráfica.
+        self.entrada_num_doc.grid(row=2, column=1, pady=10, padx=10) # Utilizamos el método grid() para organizar el campo de entrada del número de documento en una cuadrícula dentro del frame del formulario, ubicándolo en la fila 2 y columna 1, al lado de la etiqueta correspondiente. Configuramos un padding vertical (pady) y horizontal (padx) para darle espacio alrededor del campo de entrada, lo que mejora la apariencia y la legibilidad del formulario. Esto permite que el campo de entrada del número de documento esté claramente asociado con su etiqueta y sea fácil de usar para el usuario al ingresar su información.
+
+        # --- Botón de Registro ---
+        btn_registrar = tk.Button(self.root, text="Registrar Cliente", bg="#0052cc", fg="white", # Creamos un botón para registrar el cliente utilizando el widget Button de Tkinter. Configuramos el texto del botón, el color de fondo (bg) y el color del texto (fg) para darle un aspecto atractivo y profesional. Este botón se agregará a la ventana principal (self.root) y se ubicará debajo del formulario, permitiendo al usuario hacer clic en él para iniciar el proceso de registro del cliente.
+                                  font=("Helvetica", 11, "bold"), command=self.evento_registrar_cliente) # Configuramos el estilo de fuente del botón utilizando una tupla que especifica la fuente (Helvetica), el tamaño (11) y el estilo (bold) para darle un aspecto destacado. Además, configuramos el comando del botón para que llame al método self.evento_registrar_cliente cuando el usuario haga clic en él, lo que permitirá capturar los datos ingresados en el formulario y llamar a la lógica del sistema para registrar al cliente.
+        btn_registrar.pack(pady=20, ipadx=10, ipady=5)
+
+    def evento_registrar_cliente(self): # Método que se ejecuta cuando el usuario hace clic en el botón de registrar cliente. Este método captura los datos ingresados en los campos del formulario (nombre, tipo de documento y número de documento), realiza una validación rápida para asegurarse de que no haya campos vacíos, y luego llama al método registrar_cliente del sistema (SistemaFJ) para intentar registrar al cliente con los datos proporcionados. Si la validación rápida falla (ej: algún campo está vacío), se muestra una advertencia al usuario utilizando messagebox.showwarning. Si ocurre un error de validación específico del cliente (ej: nombre con números, tipo de documento no permitido, número de documento con letras), se captura la excepción ErrorValidacionCliente y se muestra un mensaje de error al usuario utilizando messagebox.showerror. Si ocurre cualquier otro error inesperado, se captura la excepción genérica Exception y se muestra un mensaje de error crítico al usuario indicando que ocurrió un error inesperado y recomendando revisar el archivo de logs para más detalles.
+        """Captura los datos de la GUI y llama a la lógica del sistema."""
+        nombre = self.entrada_nombre.get() # Capturamos el texto ingresado en el campo de entrada del nombre utilizando el método get() del widget Entry. Esto nos permite obtener el valor que el usuario ha ingresado para el nombre del cliente, que luego será utilizado para intentar registrar al cliente en el sistema.
+        tipo_doc = self.combo_tipo_doc.get() # Capturamos la opción seleccionada en el combobox del tipo de documento utilizando el método get() del widget Combobox. Esto nos permite obtener el valor que el usuario ha seleccionado para el tipo de documento del cliente, que luego será utilizado para intentar registrar al cliente en el sistema.
+        num_doc = self.entrada_num_doc.get() # Capturamos el texto ingresado en el campo de entrada del número de documento utilizando el método get() del widget Entry. Esto nos permite obtener el valor que el usuario ha ingresado para el número de documento del cliente, que luego será utilizado para intentar registrar al cliente en el sistema.
+
+        # Validación rápida para campos vacíos en la interfaz
+        if not nombre or tipo_doc == "Seleccione..." or not num_doc: # Realizamos una validación rápida para verificar si alguno de los campos del formulario está vacío o si el tipo de documento no ha sido seleccionado (es decir, si el valor es "Seleccione..."). Si alguno de estos casos se cumple, significa que el usuario no ha completado todos los campos necesarios para registrar al cliente, por lo que se muestra una advertencia utilizando messagebox.showwarning para informar al usuario que debe completar todos los campos antes de intentar registrar al cliente. Luego, se retorna del método para evitar continuar con el proceso de registro hasta que se hayan completado todos los campos.
+            messagebox.showwarning("Advertencia", "Por favor, complete todos los campos.") # Mostramos una advertencia al usuario utilizando messagebox.showwarning, con un título "Advertencia" y un mensaje que indica "Por favor, complete todos los campos." para informar al usuario que debe completar todos los campos del formulario antes de intentar registrar al cliente. Esto ayuda a mejorar la experiencia del usuario al proporcionar retroalimentación inmediata sobre lo que falta en el formulario.
+            return
+
+        try:
+            # Enviamos los datos al motor del sistema
+            self.sistema.registrar_cliente(nombre, tipo_doc, num_doc)
             
-        except ErrorValidacionCliente as e:
-            # Capturamos la excepción específica de negocio
-            mensaje_error = f"Error de validación al crear cliente: {e}"
-            print(f"❌ FALLO: {mensaje_error}")
-            logging.error(mensaje_error)
+            # Si pasa la validación estricta, mostramos éxito
+            messagebox.showinfo("Éxito", f"Cliente '{nombre}' registrado correctamente.")
+            self._limpiar_formulario()
             
+        except ErrorValidacionCliente as e: # Si ocurre un error de validación específico del cliente (ej: nombre con números, tipo de documento no permitido, número de documento con letras), se captura la excepción ErrorValidacionCliente y se muestra un mensaje de error al usuario utilizando messagebox.showerror, con un título "Error de Validación" y el mensaje específico del error capturado en la excepción. Esto proporciona retroalimentación clara al usuario sobre cuál fue el error de validación que ocurrió al intentar registrar al cliente, lo que le permite corregir los datos ingresados y volver a intentarlo.
+            # Si el backend rechaza los datos (ej: números en el nombre)
+            messagebox.showerror("Error de Validación", str(e)) # Mostramos un mensaje de error al usuario utilizando messagebox.showerror, con un título "Error de Validación" y el mensaje específico del error capturado en la excepción (str(e)). Esto proporciona retroalimentación clara al usuario sobre cuál fue el error de validación que ocurrió al intentar registrar al cliente, lo que le permite corregir los datos ingresados y volver a intentarlo.
         except Exception as e:
-            # Encadenamiento de excepciones (Exception Chaining) por si ocurre un error inesperado
-            mensaje_fatal = "Error crítico inesperado durante la creación del cliente."
-            logging.critical(f"{mensaje_fatal} Detalles: {e}")
-            raise FJErrorBase(mensaje_fatal) from e
-            
-        else:
-            # Se ejecuta SOLO si el bloque try fue exitoso
-            self._clientes.append(nuevo_cliente)
-            print(f"✅ ÉXITO: Cliente {nuevo_cliente.nombre} registrado correctamente.")
-            return nuevo_cliente
-            
-        finally:
-            # Se ejecuta SIEMPRE, haya error o no
-            print("-> Proceso de registro finalizado (Verificación de recursos completada).")
+            messagebox.showerror("Error Crítico", "Ocurrió un error inesperado. Revisa el archivo de logs.") # Si ocurre cualquier otro error inesperado, se captura la excepción genérica Exception y se muestra un mensaje de error crítico al usuario utilizando messagebox.showerror, con un título "Error Crítico" y un mensaje que indica "Ocurrió un error inesperado. Revisa el archivo de logs." para informar al usuario que ocurrió un error que no se pudo manejar adecuadamente, y se recomienda revisar el archivo de logs para obtener más detalles sobre el error. Esto ayuda a mejorar la experiencia del usuario al proporcionar retroalimentación clara sobre la situación y sugerir una acción para obtener más información sobre el error.
 
-    # Simulación de "Sobrecarga de Métodos" (Overloading) usando valores por defecto
-    # En Python la sobrecarga clásica no existe, se logra mediante argumentos opcionales.
-    def buscar_cliente(self, num_doc=None, nombre=None):
-        """Busca un cliente por documento O por nombre (comportamiento sobrecargado)."""
-        for cliente in self._clientes:
-            if num_doc and cliente.num_doc == num_doc:
-                return cliente
-            if nombre and cliente.nombre.lower() in nombre.lower():
-                return cliente
-        return None
-
-    def crear_reserva(self, cliente, servicio):
-        if not isinstance(cliente, Cliente):
-            raise ErrorReserva("El cliente proporcionado no es válido.")
-        if not isinstance(servicio, Servicio):
-            raise ErrorReserva("El servicio proporcionado no es válido.")
-            
-        nueva_reserva = Reserva(cliente, servicio)
-        self._reservas.append(nueva_reserva)
-        return nueva_reserva
-
-    def mostrar_todas_las_reservas(self):
-        print("\n=== LISTADO DE RESERVAS FJ ===")
-        if not self._reservas:
-            print("No hay reservas en el sistema.")
-        for r in self._reservas:
-            print(r.obtener_resumen())
-        print("==============================\n")
+    def _limpiar_formulario(self): # Método privado que se encarga de limpiar los campos del formulario después de un registro exitoso. Este método borra el texto ingresado en el campo de entrada del nombre, restablece el combobox del tipo de documento a su valor por defecto ("Seleccione..."), y borra el texto ingresado en el campo de entrada del número de documento. Esto permite que el formulario quede listo para registrar un nuevo cliente sin que queden datos residuales del cliente anterior, mejorando la experiencia del usuario al facilitar la entrada de nuevos datos después de cada registro exitoso.
+        """Limpia los campos después de un registro exitoso."""
+        self.entrada_nombre.delete(0, tk.END) # Borra el texto ingresado en el campo de entrada del nombre utilizando el método delete() del widget Entry. Esto elimina cualquier texto que el usuario haya ingresado previamente en ese campo, dejando el campo vacío y listo para que se ingrese un nuevo nombre para el próximo cliente que se registre.
+        self.combo_tipo_doc.set("Seleccione...") # Restablece el combobox del tipo de documento a su valor por defecto "Seleccione..." utilizando el método set() del widget Combobox. Esto asegura que el combobox vuelva a su estado inicial después de un registro exitoso, lo que indica al usuario que debe seleccionar un tipo de documento para el próximo cliente que se registre.
+        self.entrada_num_doc.delete(0, tk.END) # Borra el texto ingresado en el campo de entrada del número de documento utilizando el método delete() del widget Entry. Esto elimina cualquier texto que el usuario haya ingresado previamente en ese campo, dejando el campo vacío y listo para que se ingrese un nuevo número de documento para el próximo cliente que se registre.
 
 
 # ==========================================
-# 7. EJECUCIÓN DE PRUEBA (Main)
+# 4. EJECUCIÓN PRINCIPAL
 # ==========================================
 if __name__ == "__main__":
-    # Instanciamos el sistema
-    empresa_fj = SistemaFJ()
-
-    # 1. Pruebas de Validaciones y Excepciones (try/except/else/finally en acción)
+    # 1. Instanciar el motor del sistema (Backend)
+    motor_sistema = SistemaFJ()
     
-    # Cliente 1: Datos perfectos
-    c1 = empresa_fj.registrar_cliente("Juan Perez", "CC", "10203040")
+    # 2. Instanciar y arrancar la ventana de Tkinter (Frontend)
+    ventana_principal = tk.Tk()
+    app = AppAdminFJ(ventana_principal, motor_sistema)
     
-    # Cliente 2: Falla el nombre (contiene números)
-    c2 = empresa_fj.registrar_cliente("Maria 123", "CE", "99887766")
-    
-    # Cliente 3: Falla el tipo de documento (invento de sigla)
-    c3 = empresa_fj.registrar_cliente("Carlos Ruiz", "PAS", "112233")
-    
-    # Cliente 4: Falla el número de documento (contiene letras)
-    c4 = empresa_fj.registrar_cliente("Ana Gomez", "TI", "123ABC")
-
-    # 2. Creación de Servicios (Polimorfismo en acción)
-    if c1:
-        # Se crean instancias de clases derivadas con atributos únicos
-        servicio_sala = ReservaSala(id_servicio="S01", descripcion="Sala de Juntas VIP", precio_base=25000, horas=4, requiere_catering=True)
-        servicio_equipo = AlquilerEquipo(id_servicio="E01", descripcion="Portátil Core i7", precio_base=80000, dias=3, incluye_seguro=True)
-        servicio_asesoria = AsesoriaEspecializada(id_servicio="A01", descripcion="Consultoría de Redes", precio_base=200000, nivel_experto="Senior")
-
-        # 3. Creación de Reservas
-        empresa_fj.crear_reserva(c1, servicio_sala)
-        empresa_fj.crear_reserva(c1, servicio_equipo)
-        empresa_fj.crear_reserva(c1, servicio_asesoria)
-
-    # 4. Listado final que demuestra el cálculo polimórfico de costos
-    empresa_fj.mostrar_todas_las_reservas()
+    # Iniciar el bucle de eventos de la aplicación
+    ventana_principal.mainloop()
