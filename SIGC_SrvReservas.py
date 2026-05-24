@@ -65,7 +65,7 @@ class AppDashboardFJ:
         self.root.geometry("1200x750")
         self.root.configure(bg="#0B1426")
         
-        # Colores de la imagen
+        # Colores de la interfaz
         self.c_bg_main = "#0B1426"
         self.c_bg_panel = "#112240"
         self.c_bg_sidebar = "#080F1E"
@@ -73,26 +73,78 @@ class AppDashboardFJ:
         self.c_accent_green = "#00A896"
         self.c_text = "#CCD6F6"
         
-        self._construir_interfaz()
+        # Variable para almacenar al cliente actualmente vinculado en liquidación
+        self.cliente_vinculado = None
+        
+        self._mostrar_login()
+
+    def _mostrar_login(self):
+        self.frame_login = tk.Frame(self.root, bg=self.c_bg_main)
+        self.frame_login.pack(fill="both", expand=True)
+        
+        panel_login = tk.Frame(self.frame_login, bg=self.c_bg_panel, padx=40, pady=40)
+        panel_login.place(relx=0.5, rely=0.5, anchor="center")
+        
+        tk.Label(panel_login, text="SISTEMA INTEGRAL FJ", font=("Arial", 13, "bold"), bg=self.c_bg_panel, fg=self.c_accent_blue).pack(pady=(0, 5))
+        tk.Label(panel_login, text="Iniciar Sesión", font=("Arial", 18, "bold"), bg=self.c_bg_panel, fg="white").pack(pady=(0, 25))
+        
+        tk.Label(panel_login, text="Usuario:", bg=self.c_bg_panel, fg="#8892B0", font=("Arial", 11)).pack(anchor="w")
+        self.ent_usuario = tk.Entry(panel_login, width=32, bg="#0B1426", fg="white", insertbackground="white", font=("Arial", 11))
+        self.ent_usuario.pack(pady=(5, 15))
+        
+        tk.Label(panel_login, text="Contraseña:", bg=self.c_bg_panel, fg="#8892B0", font=("Arial", 11)).pack(anchor="w")
+        self.ent_password = tk.Entry(panel_login, width=32, bg="#0B1426", fg="white", insertbackground="white", show="*", font=("Arial", 11))
+        self.ent_password.pack(pady=(5, 25))
+        
+        btn_login = tk.Button(panel_login, text="INGRESAR", bg=self.c_accent_blue, fg="white", font=("Arial", 11, "bold"), 
+                              bd=0, width=22, command=self._verificar_login, cursor="hand2")
+        btn_login.pack(ipady=6)
+        
+        self.root.bind("<Return>", lambda event: self._verificar_login())
+
+    def _verificar_login(self):
+        usuario = self.ent_usuario.get()
+        password = self.ent_password.get()
+        
+        if usuario == "admin" and password == "admin":
+            self.root.unbind("<Return>")
+            self.frame_login.destroy()
+            self._construir_interfaz()
+        else:
+            messagebox.showerror("Error de acceso", "Usuario o contraseña incorrectos.")
 
     def _construir_interfaz(self):
         # 1. SIDEBAR
         sidebar = tk.Frame(self.root, bg=self.c_bg_sidebar, width=220)
         sidebar.pack(side="left", fill="y")
 
-        # Cargar Logo
         try:
-            img_raw = Image.open("logo_fj.png")
+            img_raw = Image.open("logo_fj_tech.png")
             img_res = img_raw.resize((160, 90), Image.LANCZOS)
             self.img_logo = ImageTk.PhotoImage(img_res)
             tk.Label(sidebar, image=self.img_logo, bg=self.c_bg_sidebar).pack(pady=20)
         except:
-            tk.Label(sidebar, text="FJ TECHNOLOGY", fg=self.c_accent_blue, bg=self.c_bg_sidebar, font=("Arial", 14, "bold")).pack(pady=40)
+            try:
+                img_raw = Image.open("logo_fj.png")
+                img_res = img_raw.resize((160, 90), Image.LANCZOS)
+                self.img_logo = ImageTk.PhotoImage(img_res)
+                tk.Label(sidebar, image=self.img_logo, bg=self.c_bg_sidebar).pack(pady=20)
+            except:
+                tk.Label(sidebar, text="FJ TECHNOLOGY", fg=self.c_accent_blue, bg=self.c_bg_sidebar, font=("Arial", 14, "bold")).pack(pady=40)
 
+        # Botones del menú
         for btn_txt in ["Inicio", "Clientes", "Servicios", "Reservas", "Reportes"]:
             bg_c = self.c_bg_panel if btn_txt == "Inicio" else self.c_bg_sidebar
+            cmd = None
+            if btn_txt == "Clientes": cmd = self.abrir_lista_clientes
+            elif btn_txt == "Servicios": cmd = self.abrir_config_servicios
+                
             tk.Button(sidebar, text=f"  {btn_txt}", bg=bg_c, fg="white", font=("Arial", 11), 
-                      bd=0, anchor="w", padx=20, pady=12).pack(fill="x")
+                      bd=0, anchor="w", padx=20, pady=12, command=cmd, cursor="hand2" if cmd else None).pack(fill="x")
+
+        # Botón Cerrar Sesión (al fondo del sidebar)
+        tk.Button(sidebar, text="  🚪 Cerrar Sesión", bg="#5C1A1A", fg="white", font=("Arial", 11, "bold"), 
+                  bd=0, anchor="w", padx=20, pady=15, command=self.evento_cerrar_sesion, cursor="hand2").pack(side="bottom", fill="x")
 
         # 2. AREA CENTRAL
         self.main_content = tk.Frame(self.root, bg=self.c_bg_main)
@@ -104,7 +156,7 @@ class AppDashboardFJ:
         tk.Label(header, text="SISTEMA INTEGRAL DE", font=("Arial", 10), bg=self.c_bg_main, fg=self.c_accent_blue).pack()
         tk.Label(header, text="Gestión de Clientes, Servicios y Reservas", font=("Arial", 20, "bold"), bg=self.c_bg_main, fg="white").pack()
 
-        # CONTENEDOR DE DOS COLUMNAS (Perspectiva Perfecta)
+        # CONTENEDOR DE DOS COLUMNAS
         contenedor_columnas = tk.Frame(self.main_content, bg=self.c_bg_main)
         contenedor_columnas.pack(fill="both", expand=True)
 
@@ -134,7 +186,7 @@ class AppDashboardFJ:
             self.campos_reg[lab] = e
 
         tk.Button(col_izq, text="💾 GUARDAR CLIENTE", bg=self.c_accent_blue, fg="white", font=("Arial", 10, "bold"), 
-                  command=self.evento_guardar, bd=0).pack(fill="x", padx=15, pady=20, ipady=8)
+                  command=self.evento_guardar, bd=0, cursor="hand2").pack(fill="x", padx=15, pady=20, ipady=8)
 
         # --- COLUMNA DERECHA: LIQUIDACIÓN ---
         col_der = tk.Frame(contenedor_columnas, bg=self.c_bg_panel, bd=1, relief="flat")
@@ -164,30 +216,40 @@ class AppDashboardFJ:
         self.lbl_total = tk.Label(col_der, text="TOTAL: $ 0", font=("Arial", 16, "bold"), bg=self.c_bg_panel, fg=self.c_accent_green)
         self.lbl_total.pack(anchor="e", padx=15)
 
+        # Botones de Acción: Limpiar y Liquidar
+        frame_acciones = tk.Frame(col_der, bg=self.c_bg_panel)
+        frame_acciones.pack(fill="x", padx=15, pady=15)
+        
+        btn_limpiar = tk.Button(frame_acciones, text="🧹 Limpiar Todo", bg="#3B4C6B", fg="white", font=("Arial", 10), bd=0, command=self.evento_limpiar, cursor="hand2")
+        btn_limpiar.pack(side="left", expand=True, fill="x", padx=(0, 5), ipady=5)
+        
+        btn_liquidar = tk.Button(frame_acciones, text="✅ Generar Liquidación", bg=self.c_accent_green, fg="white", font=("Arial", 10, "bold"), bd=0, command=self.evento_liquidar, cursor="hand2")
+        btn_liquidar.pack(side="right", expand=True, fill="x", padx=(5, 0), ipady=5)
+
         # --- FOOTER INTERACTIVO ---
         footer = tk.Frame(self.main_content, bg=self.c_bg_sidebar, height=50)
         footer.pack(fill="x", side="bottom", pady=10)
 
-        # Icono/Label Clientes (Clicable)
         self.lbl_stat_cli = tk.Label(footer, text=f"👤 Clientes registrados: {len(self.sistema._clientes)}", 
                                      bg=self.c_bg_sidebar, fg="#8892B0", cursor="hand2")
         self.lbl_stat_cli.pack(side="left", padx=20)
         self.lbl_stat_cli.bind("<Button-1>", lambda e: self.abrir_lista_clientes())
 
-        # Icono Tuerca (Clicable)
         self.lbl_tuerca = tk.Label(footer, text="⚙️ Configurar Servicios", 
                                    bg=self.c_bg_sidebar, fg="#8892B0", cursor="hand2")
         self.lbl_tuerca.pack(side="right", padx=20)
         self.lbl_tuerca.bind("<Button-1>", lambda e: self.abrir_config_servicios())
 
     # ==========================================
-    # MODULOS EMERGENTES (Solicitados)
+    # MODULOS EMERGENTES
     # ==========================================
     def abrir_lista_clientes(self):
         ventana = tk.Toplevel(self.root)
         ventana.title("Base de Datos de Clientes")
         ventana.geometry("600x400")
         ventana.configure(bg=self.c_bg_panel)
+        ventana.transient(self.root)
+        ventana.focus_set()
         
         tk.Label(ventana, text="LISTA DE CLIENTES REGISTRADOS", bg=self.c_bg_panel, fg="white", font=("Arial", 12, "bold")).pack(pady=10)
         
@@ -204,6 +266,8 @@ class AppDashboardFJ:
         ventana.title("Configuración de Servicios")
         ventana.geometry("400x300")
         ventana.configure(bg=self.c_bg_panel)
+        ventana.transient(self.root)
+        ventana.focus_set()
 
         tk.Label(ventana, text="CREAR NUEVO SERVICIO", bg=self.c_bg_panel, fg="white", font=("Arial", 11, "bold")).pack(pady=20)
         
@@ -219,17 +283,67 @@ class AppDashboardFJ:
             try:
                 nom = e_nom.get()
                 precio = float(e_cos.get())
+                if not nom: raise ValueError
                 self.sistema._servicios_catalogo[nom] = precio
                 self.cb_servs['values'] = list(self.sistema._servicios_catalogo.keys())
                 messagebox.showinfo("Éxito", "Servicio añadido al catálogo.")
                 ventana.destroy()
-            except: messagebox.showerror("Error", "Costo debe ser numérico.")
+            except: messagebox.showerror("Error", "Verifique el nombre y que el costo sea un número.")
 
         tk.Button(ventana, text="Añadir Servicio", bg=self.c_accent_green, fg="white", command=guardar_s).pack(pady=20)
 
     # ==========================================
-    # LÓGICA DE PROCESOS
+    # LÓGICA DE PROCESOS NUEVOS Y EXISTENTES
     # ==========================================
+    def evento_cerrar_sesion(self):
+        if messagebox.askyesno("Cerrar Sesión", "¿Está seguro que desea salir del sistema?"):
+            self.root.destroy()
+
+    def evento_limpiar(self):
+        # Limpiar formulario de clientes
+        self.ent_busc_doc.delete(0, tk.END)
+        for e in self.campos_reg.values(): 
+            e.delete(0, tk.END)
+            
+        # Limpiar panel de liquidación
+        self.ent_vinc_doc.delete(0, tk.END)
+        self.lbl_vinc_nom.config(text="Esperando cliente...")
+        self.cliente_vinculado = None
+        self.cb_servs.set('')
+        self.list_items.delete(0, tk.END)
+        self.lbl_total.config(text="TOTAL: $ 0")
+
+    def evento_liquidar(self):
+        if not self.cliente_vinculado:
+            messagebox.showwarning("Atención", "Debe vincular a un cliente antes de liquidar.")
+            return
+            
+        if self.list_items.size() == 0:
+            messagebox.showwarning("Atención", "Debe agregar al menos un servicio para liquidar.")
+            return
+
+        # Generar el recibo/resumen
+        fecha_hora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        resumen = f"====================================\n"
+        resumen += f"     LIQUIDACIÓN DE SERVICIOS\n"
+        resumen += f"====================================\n"
+        resumen += f"Fecha: {fecha_hora}\n\n"
+        resumen += f"DATOS DEL CLIENTE:\n"
+        resumen += f"Nombre: {self.cliente_vinculado.nombre}\n"
+        resumen += f"Documento: {self.cliente_vinculado.num_doc}\n"
+        resumen += f"Teléfono: {self.cliente_vinculado.telefono}\n"
+        resumen += f"------------------------------------\n"
+        resumen += f"SERVICIOS CONTRATADOS:\n"
+        
+        for i in range(self.list_items.size()):
+            resumen += f"- {self.list_items.get(i)}\n"
+            
+        resumen += f"------------------------------------\n"
+        resumen += f"   {self.lbl_total.cget('text')}\n"
+        resumen += f"====================================\n"
+        
+        messagebox.showinfo("Liquidación Generada Correctamente", resumen)
+
     def evento_consultar(self):
         doc = self.ent_busc_doc.get()
         cli = self.sistema.buscar_cliente(doc)
@@ -250,18 +364,22 @@ class AppDashboardFJ:
             mail = self.campos_reg["Correo electrónico"].get()
             doc = self.campos_reg["No. de Documento"].get()
             
+            if not nombre or not doc:
+                raise ErrorValidacion("Nombre y Documento son obligatorios.")
+                
             self.sistema.registrar_cliente(nombre, tel, mail, "CC", doc)
             self.lbl_stat_cli.config(text=f"👤 Clientes registrados: {len(self.sistema._clientes)}")
             messagebox.showinfo("Éxito", "Cliente guardado.")
+            for e in self.campos_reg.values(): e.delete(0, tk.END)
         except Exception as e: messagebox.showerror("Error", str(e))
 
     def evento_vincular(self):
         doc = self.ent_vinc_doc.get()
         cli = self.sistema.buscar_cliente(doc)
         if cli:
+            self.cliente_vinculado = cli  # Guardamos el objeto cliente internamente
             self.lbl_vinc_nom.config(text=f"VINCULADO: {cli.nombre}")
             self.list_items.delete(0, tk.END)
-            self.total_actual = 0
             self.lbl_total.config(text="TOTAL: $ 0")
         else: messagebox.showerror("Error", "No existe ese cliente.")
 
