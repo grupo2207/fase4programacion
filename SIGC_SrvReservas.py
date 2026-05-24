@@ -1,74 +1,30 @@
 import abc
 import logging
-from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox
+from datetime import datetime
+from PIL import Image, ImageTk  # Requiere: pip install Pillow
 
 # ==========================================
-# 1. CONFIGURACIÓN DEL LOGGING Y EXCEPCIONES
+# 1. LOGGING Y EXCEPCIONES
 # ==========================================
 logging.basicConfig(
-    filename='fj_errores.log',
-    level=logging.ERROR,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    encoding='utf-8'
+    filename='fj_errores.log', level=logging.ERROR,
+    format='%(asctime)s - %(levelname)s - %(message)s', encoding='utf-8'
 )
 
-class FJErrorBase(Exception): pass
-class ErrorValidacion(FJErrorBase): pass
+class ErrorValidacion(Exception): pass
 
 # ==========================================
 # 2. MODELO DE NEGOCIO (Backend)
 # ==========================================
 class Cliente:
-    TIPOS_DOC_PERMITIDOS = ['CC', 'TI', 'CE', 'PSP']
-
     def __init__(self, nombre, telefono, correo, tipo_doc, num_doc):
         self.nombre = nombre
         self.telefono = telefono
         self.correo = correo
         self.tipo_doc = tipo_doc
         self.num_doc = num_doc
-
-    @property
-    def nombre(self): return self.__nombre
-
-    @nombre.setter
-    def nombre(self, valor):
-        valor_limpio = str(valor).strip()
-        if not valor_limpio:
-            raise ErrorValidacion("El nombre no puede estar vacío.")
-        self.__nombre = valor_limpio
-
-    @property
-    def telefono(self): return self.__telefono
-
-    @telefono.setter
-    def telefono(self, valor):
-        valor_str = str(valor).strip()
-        if not valor_str.isdigit():
-            raise ErrorValidacion("El teléfono solo debe contener números.")
-        self.__telefono = valor_str
-
-    @property
-    def tipo_doc(self): return self.__tipo_doc
-
-    @tipo_doc.setter
-    def tipo_doc(self, valor):
-        valor_upper = str(valor).strip().upper()
-        if valor_upper not in self.TIPOS_DOC_PERMITIDOS:
-            raise ErrorValidacion(f"Tipo de documento '{valor}' no válido.")
-        self.__tipo_doc = valor_upper
-
-    @property
-    def num_doc(self): return self.__num_doc
-
-    @num_doc.setter
-    def num_doc(self, valor):
-        valor_str = str(valor).strip()
-        if not valor_str.isdigit():
-            raise ErrorValidacion("El número de documento es inválido. Solo números.")
-        self.__num_doc = valor_str
 
 class SistemaFJ:
     def __init__(self):
@@ -83,332 +39,227 @@ class SistemaFJ:
         self._precargar_datos()
 
     def _precargar_datos(self):
-        # Precarga de los dos clientes solicitados
         self.registrar_cliente("Alejandro Escobar Higuera", "3195802896", "alejandro.non2207@gmail.com", "CC", "94539614")
         self.registrar_cliente("Andres Martinez Martinez", "3195801358", "amartinezm@gmail.com", "CC", "11130258963")
 
     def registrar_cliente(self, nombre, telefono, correo, tipo_doc, num_doc):
-        if self.buscar_cliente(num_doc):
-            raise ErrorValidacion(f"El documento {num_doc} ya está registrado en el sistema.")
-        try:
-            nuevo_cliente = Cliente(nombre, telefono, correo, tipo_doc, num_doc)
-        except ErrorValidacion as e:
-            logging.error(f"Error de validación al crear cliente: {e}")
-            raise e
-        else:
-            self._clientes.append(nuevo_cliente)
-            return nuevo_cliente
+        if any(c.num_doc == num_doc for c in self._clientes):
+            raise ErrorValidacion(f"El documento {num_doc} ya existe.")
+        nuevo = Cliente(nombre, telefono, correo, tipo_doc, num_doc)
+        self._clientes.append(nuevo)
 
-    def buscar_cliente(self, num_doc):
-        for cliente in self._clientes:
-            if cliente.num_doc == str(num_doc).strip():
-                return cliente
-        return None
-
-    def obtener_total_clientes(self):
-        return len(self._clientes)
-    
-    def obtener_catalogo_servicios(self):
-        return list(self._servicios_catalogo.keys())
-    
-    def obtener_precio_servicio(self, nombre_servicio):
-        return self._servicios_catalogo.get(nombre_servicio, 0)
+    def registrar_servicio(self, nombre, costo):
+        if not nombre or costo <= 0:
+            raise ErrorValidacion("Datos de servicio inválidos.")
+        self._servicios_catalogo[nombre] = costo
 
 # ==========================================
-# 3. INTERFAZ GRÁFICA TIPO DASHBOARD (Frontend)
+# 3. INTERFAZ GRÁFICA (Dashboard)
 # ==========================================
 class AppDashboardFJ:
     def __init__(self, root, sistema):
         self.root = root
         self.sistema = sistema
-        self.root.title("FJ Technology - Sistema Integral")
-        self.root.geometry("1100x700")
-        self.root.configure(bg="#0B1426") # Fondo oscuro principal
+        self.root.title("FJ TECHNOLOGY - Sistema Integral")
+        self.root.geometry("1200://750")
+        self.root.geometry("1250x750")
+        self.root.configure(bg="#0B1426")
         
-        # Paleta de colores basada en tu imagen
+        # Colores
         self.c_bg_main = "#0B1426"
         self.c_bg_panel = "#112240"
         self.c_bg_sidebar = "#080F1E"
-        self.c_text_main = "#CCD6F6"
-        self.c_text_muted = "#8892B0"
-        self.c_accent_blue = "#0267C1"
-        self.c_accent_green = "#00A896"
+        self.c_accent = "#0267C1"
+        self.c_text = "#CCD6F6"
         
-        # Variables para la liquidación
-        self.cliente_actual_liquidacion = None
-        self.total_liquidacion = 0
-        
-        self._construir_interfaz()
+        # Contenedores
+        self.frames = {}
+        self._crear_estructura()
+        self.mostrar_frame("Inicio")
 
-    def _construir_interfaz(self):
-        # Contenedor Principal (Grid: Sidebar a la izq, Contenido a la der)
-        self.root.grid_rowconfigure(0, weight=1)
-        self.root.grid_columnconfigure(1, weight=1)
+    def _crear_estructura(self):
+        # SIDEBAR
+        self.sidebar = tk.Frame(self.root, bg=self.c_bg_sidebar, width=250)
+        self.sidebar.pack(side="left", fill="y")
 
-        # 1. SIDEBAR (Menú lateral)
-        sidebar = tk.Frame(self.root, bg=self.c_bg_sidebar, width=200)
-        sidebar.grid(row=0, column=0, sticky="ns")
-        
-        lbl_logo = tk.Label(sidebar, text="FJ\nTECHNOLOGY", font=("Helvetica", 16, "bold"), 
-                            bg=self.c_bg_sidebar, fg=self.c_accent_blue, pady=30)
-        lbl_logo.pack()
+        # LOGO (Uso de Pillow)
+        try:
+            img = Image.open("logo_fj.png")
+            img = img.resize((180, 100), Image.LANCZOS)
+            self.logo_img = ImageTk.PhotoImage(img)
+            lbl_logo = tk.Label(self.sidebar, image=self.logo_img, bg=self.c_bg_sidebar)
+            lbl_logo.pack(pady=20)
+        except:
+            tk.Label(self.sidebar, text="FJ TECHNOLOGY", fg=self.c_accent, bg=self.c_bg_sidebar, font=("Arial", 16, "bold")).pack(pady=40)
 
-        menus = ["Inicio", "Clientes", "Servicios", "Reservas", "Reportes", "Configuración"]
-        for menu in menus:
-            bg_color = self.c_bg_panel if menu == "Inicio" else self.c_bg_sidebar
-            btn = tk.Button(sidebar, text=f"  {menu}", font=("Helvetica", 11), bg=bg_color, fg=self.c_text_main, 
-                            bd=0, anchor="w", padx=20, pady=10, activebackground=self.c_accent_blue)
-            btn.pack(fill="x", pady=2)
-
-        # 2. CONTENEDOR PRINCIPAL DERECHO
-        main_frame = tk.Frame(self.root, bg=self.c_bg_main)
-        main_frame.grid(row=0, column=1, sticky="nsew")
-        main_frame.grid_rowconfigure(1, weight=1)
-        main_frame.grid_columnconfigure(0, weight=1)
-        main_frame.grid_columnconfigure(1, weight=1)
-
-        # --- HEADER ---
-        header = tk.Frame(main_frame, bg=self.c_bg_main, pady=20)
-        header.grid(row=0, column=0, columnspan=2, sticky="ew")
-        
-        lbl_title_sub = tk.Label(header, text="SISTEMA INTEGRAL DE", font=("Helvetica", 12), bg=self.c_bg_main, fg=self.c_accent_blue)
-        lbl_title_sub.pack()
-        lbl_title_main = tk.Label(header, text="Gestión de Clientes, Servicios y Reservas", font=("Helvetica", 20, "bold"), bg=self.c_bg_main, fg="white")
-        lbl_title_main.pack()
-
-        # --- PANEL IZQUIERDO: CLIENTES ---
-        panel_clientes = tk.Frame(main_frame, bg=self.c_bg_panel, bd=1, relief="ridge")
-        panel_clientes.grid(row=1, column=0, sticky="nsew", padx=15, pady=10)
-        
-        tk.Label(panel_clientes, text="👥 CLIENTES - Gestión de información", font=("Helvetica", 12, "bold"), 
-                 bg=self.c_bg_panel, fg=self.c_text_main).pack(pady=10, anchor="w", padx=15)
-
-        # Sub-panel Consulta
-        frame_consulta = tk.Frame(panel_clientes, bg=self.c_bg_panel)
-        frame_consulta.pack(fill="x", padx=15, pady=5)
-        
-        tk.Label(frame_consulta, text="Tipo de Documento:", bg=self.c_bg_panel, fg=self.c_text_muted).grid(row=0, column=0, sticky="w")
-        self.combo_buscar_tipo = ttk.Combobox(frame_consulta, values=Cliente.TIPOS_DOC_PERMITIDOS, state="readonly", width=15)
-        self.combo_buscar_tipo.grid(row=1, column=0, sticky="w", pady=5)
-        self.combo_buscar_tipo.set("CC")
-        
-        tk.Label(frame_consulta, text="No. de Documento (Consultar):", bg=self.c_bg_panel, fg=self.c_text_muted).grid(row=0, column=1, sticky="w", padx=10)
-        self.entry_buscar_doc = tk.Entry(frame_consulta, width=20)
-        self.entry_buscar_doc.grid(row=1, column=1, sticky="w", padx=10, pady=5)
-        
-        btn_consultar = tk.Button(frame_consulta, text="🔍 Consultar", bg=self.c_bg_sidebar, fg="white", bd=1, 
-                                  command=self.evento_consultar)
-        btn_consultar.grid(row=1, column=2, padx=5)
-
-        tk.Frame(panel_clientes, height=1, bg="#2A3B5C").pack(fill="x", padx=15, pady=15) # Separador
-
-        # Sub-panel Registro
-        frame_registro = tk.Frame(panel_clientes, bg=self.c_bg_panel)
-        frame_registro.pack(fill="both", expand=True, padx=15)
-        
-        # Campos de registro
-        self.entradas_registro = {}
-        campos = [
-            ("Nombre completo:", "nombre"),
-            ("Teléfono celular:", "telefono"),
-            ("Correo electrónico:", "correo")
+        # BOTONES MENU
+        botones = [
+            ("🏠 Inicio", "Inicio"),
+            ("👥 Registro Clientes", "Registro"),
+            ("📋 Lista de Clientes", "Lista"),
+            ("🛠 Configurar Servicios", "ConfigServ"),
+            ("🚪 Cerrar Sesión", "Exit")
         ]
+        for txt, target in botones:
+            btn = tk.Button(self.sidebar, text=txt, bg=self.c_bg_sidebar, fg=self.c_text, font=("Helvetica", 11),
+                            bd=0, padx=20, pady=12, anchor="w", command=lambda t=target: self.mostrar_frame(t))
+            btn.pack(fill="x")
+            btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=self.c_bg_panel))
+            btn.bind("<Leave>", lambda e, b=btn: b.configure(bg=self.c_bg_sidebar))
+
+        # CONTENEDOR DERECHO
+        self.container = tk.Frame(self.root, bg=self.c_bg_main)
+        self.container.pack(side="right", fill="both", expand=True)
+
+        # INICIALIZAR SECCIONES
+        self._init_frame_inicio()
+        self._init_frame_registro()
+        self._init_frame_lista()
+        self._init_frame_config_serv()
+
+    def mostrar_frame(self, target):
+        if target == "Exit": self.root.quit()
+        for f in self.frames.values(): f.pack_forget()
+        self.frames[target].pack(fill="both", expand=True)
+        if target == "Lista": self._actualizar_tabla_clientes()
+
+    # --- SECCIÓN 1: INICIO (Liquidación) ---
+    def _init_frame_inicio(self):
+        f = tk.Frame(self.container, bg=self.c_bg_main)
+        self.frames["Inicio"] = f
         
-        for i, (label_text, key) in enumerate(campos):
-            tk.Label(frame_registro, text=label_text, bg=self.c_bg_panel, fg=self.c_text_muted).pack(anchor="w")
-            ent = tk.Entry(frame_registro, width=45)
-            ent.pack(anchor="w", pady=(0, 10))
-            self.entradas_registro[key] = ent
-
-        tk.Label(frame_registro, text="Tipo de Documento:", bg=self.c_bg_panel, fg=self.c_text_muted).pack(anchor="w")
-        self.entradas_registro["tipo_doc"] = ttk.Combobox(frame_registro, values=Cliente.TIPOS_DOC_PERMITIDOS, state="readonly", width=42)
-        self.entradas_registro["tipo_doc"].pack(anchor="w", pady=(0, 10))
+        tk.Label(f, text="MODULO DE LIQUIDACIÓN DE SERVICIOS", font=("Arial", 18, "bold"), bg=self.c_bg_main, fg="white").pack(pady=20)
         
-        tk.Label(frame_registro, text="No. de Documento:", bg=self.c_bg_panel, fg=self.c_text_muted).pack(anchor="w")
-        self.entradas_registro["num_doc"] = tk.Entry(frame_registro, width=45)
-        self.entradas_registro["num_doc"].pack(anchor="w", pady=(0, 15))
+        panel = tk.Frame(f, bg=self.c_bg_panel, padx=30, pady=30)
+        panel.pack(pady=10)
 
-        btn_guardar = tk.Button(frame_registro, text="💾 GUARDAR CLIENTE", bg=self.c_accent_blue, fg="white", 
-                                font=("Helvetica", 10, "bold"), bd=0, command=self.evento_guardar_cliente)
-        btn_guardar.pack(fill="x", pady=10, ipady=5)
-
-
-        # --- PANEL DERECHO: SERVICIOS Y LIQUIDACIÓN ---
-        panel_servicios = tk.Frame(main_frame, bg=self.c_bg_panel, bd=1, relief="ridge")
-        panel_servicios.grid(row=1, column=1, sticky="nsew", padx=15, pady=10)
-
-        tk.Label(panel_servicios, text="💼 SERVICIOS - Módulo de Liquidación", font=("Helvetica", 12, "bold"), 
-                 bg=self.c_bg_panel, fg=self.c_text_main).pack(pady=10, anchor="w", padx=15)
-
-        # Buscar cliente para liquidar
-        frame_liq_cliente = tk.Frame(panel_servicios, bg=self.c_bg_panel)
-        frame_liq_cliente.pack(fill="x", padx=15, pady=5)
+        tk.Label(panel, text="Documento del Cliente:", bg=self.c_bg_panel, fg=self.c_text).grid(row=0, column=0, sticky="w")
+        self.ent_liq_doc = tk.Entry(panel, width=20)
+        self.ent_liq_doc.grid(row=0, column=1, padx=10)
         
-        tk.Label(frame_liq_cliente, text="Documento del Cliente:", bg=self.c_bg_panel, fg=self.c_text_muted).grid(row=0, column=0, sticky="w")
-        self.entry_liq_doc = tk.Entry(frame_liq_cliente, width=15)
-        self.entry_liq_doc.grid(row=0, column=1, padx=10)
-        btn_liq_buscar = tk.Button(frame_liq_cliente, text="Vincular Cliente", bg=self.c_bg_sidebar, fg="white", bd=1, command=self.evento_buscar_liq)
-        btn_liq_buscar.grid(row=0, column=2)
+        self.lbl_cli_nom = tk.Label(panel, text="No vinculado", fg="#00F5D4", bg=self.c_bg_panel, font=("Arial", 10, "italic"))
+        self.lbl_cli_nom.grid(row=1, column=0, columnspan=2, pady=10)
+
+        tk.Button(panel, text="Vincular", command=self._vincular_cliente_liq).grid(row=0, column=2)
+
+        tk.Label(panel, text="Seleccione Servicio:", bg=self.c_bg_panel, fg=self.c_text).grid(row=2, column=0, sticky="w", pady=10)
+        self.cb_servs = ttk.Combobox(panel, values=list(self.sistema._servicios_catalogo.keys()), width=40, state="readonly")
+        self.cb_servs.grid(row=2, column=1, columnspan=2)
+
+        self.list_liq = tk.Listbox(panel, width=60, height=10, bg="#080F1E", fg="white", bd=0)
+        self.list_liq.grid(row=3, column=0, columnspan=3, pady=20)
+
+        self.lbl_total = tk.Label(panel, text="TOTAL: $0", font=("Arial", 16, "bold"), bg=self.c_bg_panel, fg="#00F5D4")
+        self.lbl_total.grid(row=4, column=2)
+
+        tk.Button(panel, text="Agregar Servicio", bg=self.c_accent, fg="white", command=self._agregar_serv_liq).grid(row=4, column=0)
+
+    # --- SECCIÓN 2: REGISTRO ---
+    def _init_frame_registro(self):
+        f = tk.Frame(self.container, bg=self.c_bg_main)
+        self.frames["Registro"] = f
+        tk.Label(f, text="REGISTRO DE NUEVOS CLIENTES", font=("Arial", 18, "bold"), bg=self.c_bg_main, fg="white").pack(pady=20)
         
-        self.lbl_liq_nombre = tk.Label(panel_servicios, text="Cliente no seleccionado", bg=self.c_bg_panel, fg=self.c_accent_green, font=("Helvetica", 10, "italic"))
-        self.lbl_liq_nombre.pack(anchor="w", padx=15, pady=5)
+        panel = tk.Frame(f, bg=self.c_bg_panel, padx=40, pady=40)
+        panel.pack()
 
-        tk.Frame(panel_servicios, height=1, bg="#2A3B5C").pack(fill="x", padx=15, pady=10) # Separador
-
-        # Seleccionar servicio
-        tk.Label(panel_servicios, text="Servicios disponibles:", bg=self.c_bg_panel, fg=self.c_text_muted).pack(anchor="w", padx=15)
-        self.combo_servicios = ttk.Combobox(panel_servicios, values=self.sistema.obtener_catalogo_servicios(), state="readonly", width=45)
-        self.combo_servicios.pack(anchor="w", padx=15, pady=5)
+        campos = ["Nombre Completo", "Teléfono", "Correo", "Tipo Doc (CC/TI/CE/PSP)", "Número Documento"]
+        self.ents_reg = []
+        for c in campos:
+            tk.Label(panel, text=c, bg=self.c_bg_panel, fg=self.c_text).pack(anchor="w")
+            e = tk.Entry(panel, width=50)
+            e.pack(pady=5)
+            self.ents_reg.append(e)
         
-        frame_cant = tk.Frame(panel_servicios, bg=self.c_bg_panel)
-        frame_cant.pack(fill="x", padx=15, pady=5)
-        tk.Label(frame_cant, text="Cantidad / Días:", bg=self.c_bg_panel, fg=self.c_text_muted).pack(side="left")
-        self.entry_cantidad = tk.Entry(frame_cant, width=10)
-        self.entry_cantidad.pack(side="left", padx=10)
-        self.entry_cantidad.insert(0, "1")
+        tk.Button(panel, text="GUARDAR CLIENTE", bg=self.c_accent, fg="white", font=("Arial", 10, "bold"),
+                  command=self._guardar_cliente).pack(pady=20, fill="x")
+
+    # --- SECCIÓN 3: LISTA DE CLIENTES (Nueva solicitada) ---
+    def _init_frame_lista(self):
+        f = tk.Frame(self.container, bg=self.c_bg_main)
+        self.frames["Lista"] = f
+        tk.Label(f, text="BASE DE DATOS DE CLIENTES", font=("Arial", 18, "bold"), bg=self.c_bg_main, fg="white").pack(pady=20)
         
-        btn_add_servicio = tk.Button(frame_cant, text="➕ Agregar", bg=self.c_bg_sidebar, fg="white", bd=1, command=self.evento_agregar_servicio)
-        btn_add_servicio.pack(side="left", padx=10)
+        # Tabla
+        style = ttk.Style()
+        style.configure("Treeview", background="#112240", foreground="white", fieldbackground="#112240", rowheight=30)
+        style.map("Treeview", background=[('selected', '#0267C1')])
 
-        # Lista de liquidación (Carrito)
-        self.lista_liquidacion = tk.Listbox(panel_servicios, bg="#080F1E", fg="white", bd=0, height=8, font=("Courier", 9))
-        self.lista_liquidacion.pack(fill="both", expand=True, padx=15, pady=10)
-
-        # Total y Botón Final
-        self.lbl_total = tk.Label(panel_servicios, text="TOTAL: $ 0", font=("Helvetica", 16, "bold"), bg=self.c_bg_panel, fg=self.c_accent_green)
-        self.lbl_total.pack(anchor="e", padx=15)
+        columnas = ("nombre", "doc", "tipo", "tel")
+        self.tabla = ttk.Treeview(f, columns=columnas, show="headings", height=15)
+        self.tabla.heading("nombre", text="Nombre Completo")
+        self.tabla.heading("doc", text="No. Documento")
+        self.tabla.heading("tipo", text="Tipo")
+        self.tabla.heading("tel", text="Celular")
+        self.tabla.pack(padx=30, pady=10, fill="both")
         
-        btn_liquidar = tk.Button(panel_servicios, text="✓ GENERAR LIQUIDACIÓN", bg=self.c_accent_green, fg="white", 
-                                font=("Helvetica", 10, "bold"), bd=0, command=self.evento_facturar)
-        btn_liquidar.pack(fill="x", padx=15, pady=10, ipady=5)
+        tk.Label(f, text="* Seleccione un cliente para ver su No. de Documento y usarlo en liquidación", 
+                 bg=self.c_bg_main, fg=self.c_text, font=("Arial", 9, "italic")).pack()
 
-
-        # --- FOOTER (Barra de estado inferior) ---
-        footer = tk.Frame(main_frame, bg=self.c_bg_sidebar, height=40)
-        footer.grid(row=2, column=0, columnspan=2, sticky="ew", padx=15, pady=10)
-        footer.grid_propagate(False)
+    # --- SECCIÓN 4: CONFIGURAR SERVICIOS (Nueva solicitada) ---
+    def _init_frame_config_serv(self):
+        f = tk.Frame(self.container, bg=self.c_bg_main)
+        self.frames["ConfigServ"] = f
+        tk.Label(f, text="GESTIÓN DE SERVICIOS Y PRECIOS", font=("Arial", 18, "bold"), bg=self.c_bg_main, fg="white").pack(pady=20)
         
-        self.lbl_count_clientes = tk.Label(footer, text=f"👥 Clientes registrados: {self.sistema.obtener_total_clientes()}", 
-                                           bg=self.c_bg_sidebar, fg=self.c_text_muted)
-        self.lbl_count_clientes.pack(side="left", padx=20, pady=10)
-        
-        tk.Label(footer, text="📋 Servicios activos: 5", bg=self.c_bg_sidebar, fg=self.c_text_muted).pack(side="left", padx=20, pady=10)
-        tk.Label(footer, text="🟢 Sistema Operativo", bg=self.c_bg_sidebar, fg=self.c_accent_green).pack(side="right", padx=20, pady=10)
+        panel = tk.Frame(f, bg=self.c_bg_panel, padx=30, pady=30)
+        panel.pack(pady=10)
 
-    # ==========================================
-    # LOGICA DE LA INTERFAZ
-    # ==========================================
-    def evento_consultar(self):
-        doc = self.entry_buscar_doc.get().strip()
-        if not doc:
-            messagebox.showwarning("Atención", "Ingrese el número de documento a consultar.")
-            return
-            
-        cliente = self.sistema.buscar_cliente(doc)
-        if cliente:
-            # Llenar el formulario de registro con los datos encontrados
-            for ent in self.entradas_registro.values():
-                if isinstance(ent, tk.Entry):
-                    ent.delete(0, tk.END)
-            self.entradas_registro["nombre"].insert(0, cliente.nombre)
-            self.entradas_registro["telefono"].insert(0, cliente.telefono)
-            self.entradas_registro["correo"].insert(0, cliente.correo)
-            self.entradas_registro["tipo_doc"].set(cliente.tipo_doc)
-            self.entradas_registro["num_doc"].insert(0, cliente.num_doc)
-            messagebox.showinfo("Búsqueda", "Cliente encontrado y cargado en el formulario.")
+        tk.Label(panel, text="Nombre del Servicio:", bg=self.c_bg_panel, fg=self.c_text).pack(anchor="w")
+        self.ent_serv_nom = tk.Entry(panel, width=40)
+        self.ent_serv_nom.pack(pady=5)
+
+        tk.Label(panel, text="Costo del Servicio ($):", bg=self.c_bg_panel, fg=self.c_text).pack(anchor="w")
+        self.ent_serv_costo = tk.Entry(panel, width=40)
+        self.ent_serv_costo.pack(pady=5)
+
+        tk.Button(panel, text="AÑADIR AL CATÁLOGO", bg="#00A896", fg="white", font=("Arial", 10, "bold"),
+                  command=self._crear_nuevo_servicio).pack(pady=20, fill="x")
+
+    # --- LOGICA ---
+    def _vincular_cliente_liq(self):
+        doc = self.ent_liq_doc.get()
+        cli = next((c for c in self.sistema._clientes if c.num_doc == doc), None)
+        if cli:
+            self.lbl_cli_nom.config(text=f"VINCULADO: {cli.nombre}")
+            self.cliente_actual = cli
         else:
-            messagebox.showinfo("Búsqueda", "Cliente no encontrado. Puede usar el formulario para registrarlo.")
+            messagebox.showerror("Error", "Cliente no encontrado.")
 
-    def evento_guardar_cliente(self):
+    def _agregar_serv_liq(self):
+        s_nom = self.cb_servs.get()
+        if s_nom:
+            precio = self.sistema._servicios_catalogo[s_nom]
+            self.list_liq.insert(tk.END, f"{s_nom} --- ${precio:,.0f}")
+            # Calculo total simple
+            total = sum(self.sistema._servicios_catalogo[line.split(" --- ")[0]] for line in self.list_liq.get(0, tk.END))
+            self.lbl_total.config(text=f"TOTAL: ${total:,.0f}")
+
+    def _guardar_cliente(self):
         try:
-            nombre = self.entradas_registro["nombre"].get()
-            telefono = self.entradas_registro["telefono"].get()
-            correo = self.entradas_registro["correo"].get()
-            tipo_doc = self.entradas_registro["tipo_doc"].get()
-            num_doc = self.entradas_registro["num_doc"].get()
+            datos = [e.get() for e in self.ents_reg]
+            self.sistema.registrar_cliente(datos[0], datos[1], datos[2], datos[3], datos[4])
+            messagebox.showinfo("Éxito", "Cliente guardado.")
+            for e in self.ents_reg: e.delete(0, tk.END)
+        except Exception as e: messagebox.showerror("Error", str(e))
 
-            if not all([nombre, telefono, correo, tipo_doc, num_doc]):
-                raise ErrorValidacion("Por favor, complete todos los campos.")
+    def _actualizar_tabla_clientes(self):
+        for i in self.tabla.get_children(): self.tabla.delete(i)
+        for c in self.sistema._clientes:
+            self.tabla.insert("", tk.END, values=(c.nombre, c.num_doc, c.tipo_doc, c.telefono))
 
-            self.sistema.registrar_cliente(nombre, telefono, correo, tipo_doc, num_doc)
-            
-            messagebox.showinfo("Éxito", f"Cliente {nombre} registrado exitosamente.")
-            
-            # Limpiar formulario
-            for ent in self.entradas_registro.values():
-                if isinstance(ent, tk.Entry):
-                    ent.delete(0, tk.END)
-            self.entradas_registro["tipo_doc"].set("")
-            
-            # Actualizar el contador inferior dinámicamente
-            total = self.sistema.obtener_total_clientes()
-            self.lbl_count_clientes.config(text=f"👥 Clientes registrados: {total}")
-            
-        except ErrorValidacion as e:
-            messagebox.showerror("Error de Validación", str(e))
-
-    def evento_buscar_liq(self):
-        doc = self.entry_liq_doc.get().strip()
-        cliente = self.sistema.buscar_cliente(doc)
-        if cliente:
-            self.cliente_actual_liquidacion = cliente
-            self.lbl_liq_nombre.config(text=f"Cliente vinculado: {cliente.nombre} ({cliente.num_doc})")
-            # Reiniciamos la liquidación actual
-            self.lista_liquidacion.delete(0, tk.END)
-            self.total_liquidacion = 0
-            self.lbl_total.config(text="TOTAL: $ 0")
-        else:
-            messagebox.showwarning("Error", "Cliente no encontrado. Regístrelo primero en el panel izquierdo.")
-
-    def evento_agregar_servicio(self):
-        if not self.cliente_actual_liquidacion:
-            messagebox.showwarning("Atención", "Primero debe vincular un cliente usando su documento.")
-            return
-            
-        servicio = self.combo_servicios.get()
-        if not servicio:
-            messagebox.showwarning("Atención", "Seleccione un servicio de la lista.")
-            return
-            
+    def _crear_nuevo_servicio(self):
         try:
-            cant = int(self.entry_cantidad.get())
-            if cant <= 0: raise ValueError
-        except ValueError:
-            messagebox.showwarning("Error", "La cantidad debe ser un número entero mayor a 0.")
-            return
+            nom = self.ent_serv_nom.get()
+            costo = float(self.ent_serv_costo.get())
+            self.sistema.registrar_servicio(nom, costo)
+            self.cb_servs['values'] = list(self.sistema._servicios_catalogo.keys())
+            messagebox.showinfo("Éxito", f"Servicio '{nom}' añadido.")
+            self.ent_serv_nom.delete(0, tk.END); self.ent_serv_costo.delete(0, tk.END)
+        except: messagebox.showerror("Error", "Verifique el nombre y que el costo sea un número.")
 
-        precio_uni = self.sistema.obtener_precio_servicio(servicio)
-        subtotal = precio_uni * cant
-        self.total_liquidacion += subtotal
-        
-        # Formatear el texto para la lista
-        texto_item = f"{cant}x {servicio[:20]}... | Sub: ${subtotal:,.0f}"
-        self.lista_liquidacion.insert(tk.END, texto_item)
-        
-        self.lbl_total.config(text=f"TOTAL: $ {self.total_liquidacion:,.0f}")
-
-    def evento_facturar(self):
-        if not self.cliente_actual_liquidacion or self.total_liquidacion == 0:
-            messagebox.showwarning("Atención", "No hay servicios para liquidar.")
-            return
-            
-        messagebox.showinfo("Liquidación Generada", 
-                            f"Se ha liquidado la cuenta para:\n{self.cliente_actual_liquidacion.nombre}\n\n"
-                            f"Total a pagar: ${self.total_liquidacion:,.0f}")
-        
-        # Limpiar módulo tras facturar
-        self.cliente_actual_liquidacion = None
-        self.lbl_liq_nombre.config(text="Cliente no seleccionado")
-        self.lista_liquidacion.delete(0, tk.END)
-        self.total_liquidacion = 0
-        self.lbl_total.config(text="TOTAL: $ 0")
-        self.entry_liq_doc.delete(0, tk.END)
-
-# ==========================================
-# 4. EJECUCIÓN
-# ==========================================
 if __name__ == "__main__":
-    motor = SistemaFJ()
+    sistema = SistemaFJ()
     root = tk.Tk()
-    app = AppDashboardFJ(root, motor)
+    app = AppDashboardFJ(root, sistema)
     root.mainloop()
