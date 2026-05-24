@@ -169,4 +169,4 @@ if __name__ == "__main__":
     app = AppAdminFJ(ventana_principal, motor_sistema)
     
     # Iniciar el bucle de eventos de la aplicación
-    ventana_principal.mainloop()
+    ventana_principal.mainloop() # Iniciamos el bucle de eventos de la aplicación utilizando el método mainloop() de la ventana principal (ventana_principal). Esto permite que la interfaz gráfica se mantenga abierta y responda a las interacciones del usuario, como hacer clic en botones o ingresar datos en los campos del formulario. El bucle de eventos es esencial para que la aplicación funcione correctamente y permita al usuario interactuar con ella de manera fluida.
