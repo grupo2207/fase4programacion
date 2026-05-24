@@ -1,3 +1,6 @@
 2026-05-24 14:41:13,106 - ERROR - Error de validación al crear cliente: El nombre 'Maria 123' es inválido. Solo se permite texto.
 2026-05-24 14:41:13,107 - ERROR - Error de validación al crear cliente: Tipo de documento 'PAS' no válido. Opciones: ['CC', 'TI', 'CE', 'PSP']
 2026-05-24 14:41:13,107 - ERROR - Error de validación al crear cliente: El número de documento '123ABC' es inválido. Solo se permiten números.
+2026-05-24 14:43:37,898 - ERROR - Error de validación al crear cliente: El nombre 'Maria 123' es inválido. Solo se permite texto.
+2026-05-24 14:43:37,899 - ERROR - Error de validación al crear cliente: Tipo de documento 'PAS' no válido. Opciones: ['CC', 'TI', 'CE', 'PSP']
+2026-05-24 14:43:37,899 - ERROR - Error de validación al crear cliente: El número de documento '123ABC' es inválido. Solo se permiten números.
