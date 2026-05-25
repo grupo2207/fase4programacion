@@ -527,20 +527,24 @@ class AppDashboardFJ: # Clase principal de la interfaz gráfica del sistema, que
         
         messagebox.showinfo("Liquidación Generada Correctamente", resumen)  # Muestra el resumen de la liquidación generada en un mensaje informativo, lo que proporciona una experiencia visual clara para el usuario al mostrar los detalles de la liquidación, mejorando la experiencia del usuario al interactuar con un entorno visualmente coherente y profesional dentro del sistema, además de ofrecer una interacción clara para gestionar la generación de liquidaciones de manera segura.
 
-    def evento_consultar(self): # Método para manejar el evento de consultar un cliente por su número de documento, que toma el valor ingresado en el campo de consulta, busca el cliente en el sistema y, si lo encuentra, carga su información en los campos del formulario de registro; si no lo encuentra, registra un error de usuario y muestra un mensaje de advertencia, lo que proporciona una experiencia visual para gestionar la consulta de clientes y mejora la experiencia del usuario al interactuar con un entorno visualmente coherente y profesional dentro del sistema, además de ofrecer una interacción clara para consultar clientes de manera eficiente.
-        doc = self.ent_busc_doc.get().strip()
+    def evento_consultar(self): # Método para manejar el evento de consultar un cliente por su número de documento...
+        doc = self.ent_busc_doc.get().strip() # Obtención del número de documento ingresado en el campo de búsqueda, lo que proporciona una experiencia visual para gestionar la consulta de clientes y mejora la experiencia del usuario al interactuar con un entorno visualmente coherente y profesional dentro del sistema, además de ofrecer una interacción clara para consultar clientes de manera eficiente.
         cli = self.sistema.buscar_cliente(doc)
         if cli:
             self.campos_reg["Nombre completo"].delete(0, tk.END)
             self.campos_reg["Nombre completo"].insert(0, cli.nombre)
             self.campos_reg["Teléfono celular"].delete(0, tk.END)
             self.campos_reg["Teléfono celular"].insert(0, cli.telefono)
+            
+            self.campos_reg["Correo electrónico"].delete(0, tk.END)
+            self.campos_reg["Correo electrónico"].insert(0, cli.correo)
+                       
             self.campos_reg["No. de Documento"].delete(0, tk.END)
             self.campos_reg["No. de Documento"].insert(0, cli.num_doc)
             messagebox.showinfo("Consulta", "Cliente cargado en formulario.")
         else: 
             self.sistema.registrar_error_usuario(f"Consulta de documento inexistente: '{doc}'")
-            messagebox.showwarning("Atención", "Cliente no registrado.")
+            messagebox.showwarning("Atención", "Cliente no registrado.")            
 
     def evento_guardar(self): # Método para manejar el evento de guardar un nuevo cliente, que toma los valores ingresados en los campos del formulario de registro, valida la información y, si es correcta, registra un nuevo cliente en el sistema; si la información es incorrecta o faltan campos obligatorios, registra un error de usuario y muestra un mensaje de error, lo que proporciona una experiencia visual para gestionar el registro de clientes y mejora la experiencia del usuario al interactuar con un entorno visualmente coherente y profesional dentro del sistema, además de ofrecer una interacción clara para registrar clientes de manera eficiente.
         try:
