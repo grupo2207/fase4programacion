@@ -37,6 +37,8 @@ class SistemaFJ:
             "Alquiler de portatil gamma alta": 35000,
             "Asesoria especializada": 85000
         }
+        # Lista interna para almacenar el historial de errores cometidos por usuarios
+        self._historial_errores_usuario = []
         self._precargar_datos()
 
     def _precargar_datos(self):
@@ -53,6 +55,11 @@ class SistemaFJ:
         for c in self._clientes:
             if c.num_doc == str(num_doc).strip(): return c
         return None
+
+    def registrar_error_usuario(self, descripcion):
+        """Registra un error operativo o de digitación con su marca de tiempo"""
+        fecha_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        self._historial_errores_usuario.append((fecha_hora, descripcion))
 
 # ==========================================
 # 3. INTERFAZ GRÁFICA (Dashboard Principal)
@@ -111,6 +118,8 @@ class AppDashboardFJ:
             self.frame_login.destroy()
             self._construir_interfaz()
         else:
+            # REGISTRO DE ERROR: Login incorrecto
+            self.sistema.registrar_error_usuario(f"Intento de acceso fallido. Usuario digitado: '{usuario}'")
             messagebox.showerror("Error de acceso", "Usuario o contraseña incorrectos.")
 
     def _construir_interfaz(self):
@@ -138,6 +147,7 @@ class AppDashboardFJ:
             cmd = None
             if btn_txt == "Clientes": cmd = self.abrir_lista_clientes
             elif btn_txt == "Servicios": cmd = self.abrir_config_servicios
+            elif btn_txt == "Reportes": cmd = self.abrir_reporte_errores  # Vinculamos el nuevo módulo de reportes
                 
             tk.Button(sidebar, text=f"  {btn_txt}", bg=bg_c, fg="white", font=("Arial", 11), 
                       bd=0, anchor="w", padx=20, pady=12, command=cmd, cursor="hand2" if cmd else None).pack(fill="x")
@@ -241,7 +251,7 @@ class AppDashboardFJ:
         self.lbl_tuerca.bind("<Button-1>", lambda e: self.abrir_config_servicios())
 
     # ==========================================
-    # MODULOS EMERGENTES
+    # MODULOS EMERGENTES (Ventanas Toplevel)
     # ==========================================
     def abrir_lista_clientes(self):
         ventana = tk.Toplevel(self.root)
@@ -288,24 +298,59 @@ class AppDashboardFJ:
                 self.cb_servs['values'] = list(self.sistema._servicios_catalogo.keys())
                 messagebox.showinfo("Éxito", "Servicio añadido al catálogo.")
                 ventana.destroy()
-            except: messagebox.showerror("Error", "Verifique el nombre y que el costo sea un número.")
+            except: 
+                self.sistema.registrar_error_usuario("Error al intentar añadir servicio con datos inválidos.")
+                messagebox.showerror("Error", "Verifique el nombre y que el costo sea un número.")
 
         tk.Button(ventana, text="Añadir Servicio", bg=self.c_accent_green, fg="white", command=guardar_s).pack(pady=20)
 
+    def abrir_reporte_errores(self):
+        """Abre una ventana con la tabla de errores cometidos por los usuarios"""
+        ventana = tk.Toplevel(self.root)
+        ventana.title("Auditoría - Reporte de Errores Operativos")
+        ventana.geometry("650x400")
+        ventana.configure(bg=self.c_bg_panel)
+        ventana.transient(self.root)
+        ventana.focus_set()
+
+        tk.Label(ventana, text="🚨 REPORTE DE ERRORES DE USUARIO", bg=self.c_bg_panel, fg="white", font=("Arial", 12, "bold")).pack(pady=15)
+        
+        # Contenedor para tabla y scrollbar
+        frame_tabla = tk.Frame(ventana, bg=self.c_bg_panel)
+        frame_tabla.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        scrolly = ttk.Scrollbar(frame_tabla, orient="vertical")
+        scrolly.pack(side="right", fill="y")
+        
+        tabla = ttk.Treeview(frame_tabla, columns=("Fecha", "Detalle"), show="headings", yscrollcommand=scrolly.set)
+        scrolly.config(command=tabla.yview)
+        
+        tabla.heading("Fecha", text="Fecha / Hora")
+        tabla.heading("Detalle", text="Descripción de la Incidencia / Error")
+        
+        tabla.column("Fecha", width=160, anchor="center")
+        tabla.column("Detalle", width=450, anchor="w")
+        tabla.pack(side="left", fill="both", expand=True)
+
+        # Cargar los datos del historial
+        if not self.sistema._historial_errores_usuario:
+            tabla.insert("", tk.END, values=("N/A", "No se han detectado errores en esta sesión. ¡Todo limpio!"))
+        else:
+            for error in self.sistema._historial_errores_usuario:
+                tabla.insert("", tk.END, values=error)
+
     # ==========================================
-    # LÓGICA DE PROCESOS NUEVOS Y EXISTENTES
+    # LÓGICA DE PROCESOS
     # ==========================================
     def evento_cerrar_sesion(self):
         if messagebox.askyesno("Cerrar Sesión", "¿Está seguro que desea salir del sistema?"):
             self.root.destroy()
 
     def evento_limpiar(self):
-        # Limpiar formulario de clientes
         self.ent_busc_doc.delete(0, tk.END)
         for e in self.campos_reg.values(): 
             e.delete(0, tk.END)
             
-        # Limpiar panel de liquidación
         self.ent_vinc_doc.delete(0, tk.END)
         self.lbl_vinc_nom.config(text="Esperando cliente...")
         self.cliente_vinculado = None
@@ -315,10 +360,14 @@ class AppDashboardFJ:
 
     def evento_liquidar(self):
         if not self.cliente_vinculado:
+            # REGISTRO DE ERROR: Intentar liquidar sin cliente vinculado
+            self.sistema.registrar_error_usuario("Intento de liquidación fallido: No se vinculó ningún cliente.")
             messagebox.showwarning("Atención", "Debe vincular a un cliente antes de liquidar.")
             return
             
         if self.list_items.size() == 0:
+            # REGISTRO DE ERROR: Intentar liquidar sin servicios en la lista
+            self.sistema.registrar_error_usuario(f"Intento de liquidación fallido para el cliente {self.cliente_vinculado.num_doc}: Lista de servicios vacía.")
             messagebox.showwarning("Atención", "Debe agregar al menos un servicio para liquidar.")
             return
 
@@ -345,7 +394,7 @@ class AppDashboardFJ:
         messagebox.showinfo("Liquidación Generada Correctamente", resumen)
 
     def evento_consultar(self):
-        doc = self.ent_busc_doc.get()
+        doc = self.ent_busc_doc.get().strip()
         cli = self.sistema.buscar_cliente(doc)
         if cli:
             self.campos_reg["Nombre completo"].delete(0, tk.END)
@@ -355,14 +404,17 @@ class AppDashboardFJ:
             self.campos_reg["No. de Documento"].delete(0, tk.END)
             self.campos_reg["No. de Documento"].insert(0, cli.num_doc)
             messagebox.showinfo("Consulta", "Cliente cargado en formulario.")
-        else: messagebox.showwarning("Atención", "Cliente no registrado.")
+        else: 
+            # REGISTRO DE ERROR: Consultar cédula inexistente
+            self.sistema.registrar_error_usuario(f"Consulta de documento inexistente: '{doc}'")
+            messagebox.showwarning("Atención", "Cliente no registrado.")
 
     def evento_guardar(self):
         try:
-            nombre = self.campos_reg["Nombre completo"].get()
-            tel = self.campos_reg["Teléfono celular"].get()
-            mail = self.campos_reg["Correo electrónico"].get()
-            doc = self.campos_reg["No. de Documento"].get()
+            nombre = self.campos_reg["Nombre completo"].get().strip()
+            tel = self.campos_reg["Teléfono celular"].get().strip()
+            mail = self.campos_reg["Correo electrónico"].get().strip()
+            doc = self.campos_reg["No. de Documento"].get().strip()
             
             if not nombre or not doc:
                 raise ErrorValidacion("Nombre y Documento son obligatorios.")
@@ -371,17 +423,23 @@ class AppDashboardFJ:
             self.lbl_stat_cli.config(text=f"👤 Clientes registrados: {len(self.sistema._clientes)}")
             messagebox.showinfo("Éxito", "Cliente guardado.")
             for e in self.campos_reg.values(): e.delete(0, tk.END)
-        except Exception as e: messagebox.showerror("Error", str(e))
+        except Exception as e: 
+            # REGISTRO DE ERROR: Fallo al guardar (Duplicados o campos vacíos)
+            self.sistema.registrar_error_usuario(f"Error al guardar cliente en el formulario: {str(e)}")
+            messagebox.showerror("Error", str(e))
 
     def evento_vincular(self):
-        doc = self.ent_vinc_doc.get()
+        doc = self.ent_vinc_doc.get().strip()
         cli = self.sistema.buscar_cliente(doc)
         if cli:
-            self.cliente_vinculado = cli  # Guardamos el objeto cliente internamente
+            self.cliente_vinculado = cli
             self.lbl_vinc_nom.config(text=f"VINCULADO: {cli.nombre}")
             self.list_items.delete(0, tk.END)
             self.lbl_total.config(text="TOTAL: $ 0")
-        else: messagebox.showerror("Error", "No existe ese cliente.")
+        else: 
+            # REGISTRO DE ERROR: Vincular cédula inexistente
+            self.sistema.registrar_error_usuario(f"Intento de vinculación con documento inexistente: '{doc}'")
+            messagebox.showerror("Error", "No existe ese cliente.")
 
     def evento_agregar_serv(self):
         s = self.cb_servs.get()
