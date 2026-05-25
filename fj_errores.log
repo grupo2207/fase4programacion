@@ -4,3 +4,5 @@
 2026-05-24 14:43:37,898 - ERROR - Error de validación al crear cliente: El nombre 'Maria 123' es inválido. Solo se permite texto.
 2026-05-24 14:43:37,899 - ERROR - Error de validación al crear cliente: Tipo de documento 'PAS' no válido. Opciones: ['CC', 'TI', 'CE', 'PSP']
 2026-05-24 14:43:37,899 - ERROR - Error de validación al crear cliente: El número de documento '123ABC' es inválido. Solo se permiten números.
+2026-05-24 20:23:44,499 - ERROR - Simulacion Error Validacion: El documento 000000 ya está registrado.
+2026-05-24 20:23:44,507 - CRITICAL - Encadenamiento: invalid literal for int() with base 10: 'TextoInvalidoParaGenerarErrorBase'
